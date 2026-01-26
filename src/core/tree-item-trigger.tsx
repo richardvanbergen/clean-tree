@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useRef, type ReactNode, type HTMLAttributes, forwardRef } from 'react';
 import invariant from 'tiny-invariant';
-import { TreeItemContext } from './TreeItem.tsx';
+import { TreeItemContext } from './tree-item.tsx';
 
 export type TreeItemTriggerProps = HTMLAttributes<HTMLDivElement> & {
 	children?: ReactNode;

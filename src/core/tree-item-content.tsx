@@ -1,6 +1,6 @@
 import React, { useContext, type ReactNode, type ButtonHTMLAttributes } from 'react';
 import invariant from 'tiny-invariant';
-import { TreeItemContext } from './TreeItem.tsx';
+import { TreeItemContext } from './tree-item.tsx';
 import { DependencyContext } from './contexts.ts';
 
 export type TreeItemContentProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> & {

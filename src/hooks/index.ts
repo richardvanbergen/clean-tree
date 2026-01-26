@@ -1,2 +1,2 @@
-export { useTree } from './useTree.ts';
-export { useTreeItem } from './useTreeItem.ts';
+export { useTree } from './use-tree.ts';
+export { useTreeItem } from './use-tree-item.ts';

@@ -15,7 +15,7 @@ import {
 import { GroupDropIndicator } from '@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/group';
 
 import { TreeContext } from './contexts.ts';
-import { TreeEndZone } from './TreeEndZone.tsx';
+import { TreeEndZone } from './tree-end-zone.tsx';
 
 export type TreeRootProps = HTMLAttributes<HTMLDivElement> & {
 	children: ReactNode;

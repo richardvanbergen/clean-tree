@@ -14,8 +14,8 @@ import {
 import { GroupDropIndicator } from '@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/group';
 
 import { TreeContext } from './contexts.ts';
-import { TreeItemContext } from './TreeItem.tsx';
-import { TreeEndZone } from './TreeEndZone.tsx';
+import { TreeItemContext } from './tree-item.tsx';
+import { TreeEndZone } from './tree-end-zone.tsx';
 
 export type TreeItemChildrenState = 'idle' | 'is-innermost-over';
 
