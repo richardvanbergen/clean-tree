@@ -186,8 +186,30 @@ export function TreeProvider({
 				const itemId = source.data.id as string;
 				const target = location.current.dropTargets[0];
 				invariant(target);
-				const targetId = target.data.id as string;
 
+				// Handle drops on group indicators (end of list)
+				if (target.data.type === 'group') {
+					const parentId = target.data.parentId as string;
+
+					// Prevent dropping onto a descendant's group
+					if (parentId !== '') {
+						const pathToParent = context.getPathToItem(parentId);
+						if (pathToParent.includes(itemId) || parentId === itemId) {
+							return; // Can't drop item into itself or its descendants
+						}
+					}
+
+					const children = getChildrenOfItem(parentId);
+					updateState({
+						type: 'modal-move',
+						itemId,
+						targetId: parentId,
+						index: children.length, // insert at end
+					});
+					return;
+				}
+
+				const targetId = target.data.id as string;
 				const instruction = extractInstruction(target.data);
 
 				if (instruction !== null) {

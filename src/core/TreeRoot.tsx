@@ -15,6 +15,7 @@ import {
 import { GroupDropIndicator } from '@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/group';
 
 import { TreeContext } from './contexts.ts';
+import { TreeEndZone } from './TreeEndZone.tsx';
 
 export type TreeRootProps = HTMLAttributes<HTMLDivElement> & {
 	children: ReactNode;
@@ -46,7 +47,7 @@ export function TreeRoot({ children, ...props }: TreeRootProps) {
 				canDrop: ({ source }) =>
 					source.data.uniqueContextId === uniqueContextId &&
 					source.data.type === 'tree-item',
-				getData: () => ({ type: 'group' }),
+				getData: () => ({ type: 'group', parentId: '' }), // empty string = root level
 				onDragStart: onDropTargetChange,
 				onDropTargetChange: onDropTargetChange,
 				onDragLeave: () => setDropTargetState('idle'),
@@ -60,6 +61,7 @@ export function TreeRoot({ children, ...props }: TreeRootProps) {
 			<GroupDropIndicator isActive={dropTargetState === 'is-innermost-over'} ref={groupRef}>
 				{children}
 			</GroupDropIndicator>
+			<TreeEndZone parentId="" />
 		</div>
 	);
 }

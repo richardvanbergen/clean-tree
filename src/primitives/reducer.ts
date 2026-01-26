@@ -88,7 +88,8 @@ export function dataReducer(data: TreeItem[], action: TreeAction): TreeItem[] {
 			} else {
 				result = tree.insertChild(result, action.targetId, item);
 			}
-		} else if (action.index === siblingItems.length) {
+		} else if (action.index >= siblingItems.length) {
+			// Insert at end (index may exceed length if item was removed from same group)
 			const relativeTo = siblingItems[siblingItems.length - 1];
 			invariant(relativeTo);
 			result = tree.insertAfter(result, relativeTo.id, item);

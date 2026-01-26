@@ -5,3 +5,4 @@ export { TreeItem, TreeItemContext, type TreeItemProps, type TreeItemState, type
 export { TreeItemContent, type TreeItemContentProps } from './TreeItemContent.tsx';
 export { TreeItemTrigger, type TreeItemTriggerProps } from './TreeItemTrigger.tsx';
 export { TreeItemChildren, type TreeItemChildrenProps, type TreeItemChildrenState } from './TreeItemChildren.tsx';
+export { TreeEndZone, type TreeEndZoneProps } from './TreeEndZone.tsx';

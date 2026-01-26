@@ -43,6 +43,41 @@ export type TreeItemContextValue = {
 
 export const TreeItemContext = createContext<TreeItemContextValue | null>(null);
 
+function countDescendants(item: TreeItemType): number {
+	let count = 0;
+	for (const child of item.children) {
+		count += 1 + countDescendants(child);
+	}
+	return count;
+}
+
+function DefaultDragPreview({ item }: { item: TreeItemType }) {
+	const descendantCount = countDescendants(item);
+	return (
+		<div style={{
+			padding: '8px 12px',
+			background: '#fff',
+			borderRadius: 3,
+			boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+			display: 'flex',
+			alignItems: 'center',
+			gap: 8,
+		}}>
+			<span>Item {item.id}</span>
+			{descendantCount > 0 && (
+				<span style={{
+					fontSize: 11,
+					background: '#e0e0e0',
+					padding: '2px 6px',
+					borderRadius: 10,
+				}}>
+					+{descendantCount} item{descendantCount > 1 ? 's' : ''}
+				</span>
+			)}
+		</div>
+	);
+}
+
 function delay({ waitMs, fn }: { waitMs: number; fn: () => void }): () => void {
 	let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
 		timeoutId = null;
@@ -94,7 +129,7 @@ export const TreeItem = memo(function TreeItem({
 	const cancelExpandRef = useRef<(() => void) | null>(null);
 	const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
 
-	const { dispatch, uniqueContextId, registerTreeItem } = useContext(TreeContext);
+	const { dispatch, uniqueContextId, registerTreeItem, getPathToItem } = useContext(TreeContext);
 	const { attachInstruction, extractInstruction } = useContext(DependencyContext);
 
 	const toggleOpen = useCallback(() => {
@@ -170,9 +205,7 @@ export const TreeItem = memo(function TreeItem({
 								renderPreview ? (
 									renderPreview(item)
 								) : (
-									<div style={{ padding: 8, background: '#fff', borderRadius: 3 }}>
-										Item {item.id}
-									</div>
+									<DefaultDragPreview item={item} />
 								),
 							);
 							return () => root.unmount();
@@ -205,10 +238,18 @@ export const TreeItem = memo(function TreeItem({
 								},
 					});
 				},
-				canDrop: ({ source }) =>
-					source.data.type === 'tree-item' &&
-					source.data.id !== item.id &&
-					source.data.uniqueContextId === uniqueContextId,
+				canDrop: ({ source }) => {
+					if (source.data.type !== 'tree-item') return false;
+					if (source.data.id === item.id) return false;
+					if (source.data.uniqueContextId !== uniqueContextId) return false;
+
+					// Prevent dropping onto descendants
+					const pathToTarget = getPathToItem(item.id);
+					const draggedId = source.data.id as string;
+					if (pathToTarget.includes(draggedId)) return false;
+
+					return true;
+				},
 				onDragEnter: onChange,
 				onDrag: onChange,
 				onDragLeave: () => {
@@ -228,6 +269,7 @@ export const TreeItem = memo(function TreeItem({
 		uniqueContextId,
 		extractInstruction,
 		attachInstruction,
+		getPathToItem,
 		renderPreview,
 	]);
 
