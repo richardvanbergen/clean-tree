@@ -1,0 +1,295 @@
+* {
+	box-sizing: border-box;
+}
+
+body {
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	margin: 0;
+	padding: 24px;
+	background: #f5f5f5;
+}
+
+.app {
+	max-width: 800px;
+	margin: 0 auto;
+}
+
+h1 {
+	margin-bottom: 32px;
+	color: #1a1a1a;
+}
+
+h2 {
+	font-size: 18px;
+	color: #333;
+	margin-bottom: 8px;
+}
+
+section {
+	margin-bottom: 48px;
+}
+
+section > p {
+	color: #666;
+	margin-bottom: 16px;
+}
+
+.tree-container {
+	background: #fff;
+	border-radius: 8px;
+	padding: 16px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tree {
+	display: flex;
+	flex-direction: column;
+}
+
+[data-tree-root] {
+	display: flex;
+	flex-direction: column;
+}
+
+[data-tree-root][data-drop-target-state='is-innermost-over'] {
+	outline: 2px dashed #0052cc;
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+[data-tree-item] {
+	position: relative;
+}
+
+.tree-item-content {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 40px 8px 8px;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	width: 100%;
+	text-align: left;
+	border-radius: 4px;
+	font-size: 14px;
+	position: relative;
+}
+
+.tree-item-content:hover {
+	background: #f0f0f0;
+}
+
+.tree-item-content:focus {
+	outline: 2px solid #0052cc;
+	outline-offset: -2px;
+}
+
+.tree-item-content[data-state='dragging'] {
+	opacity: 0.4;
+}
+
+.tree-item-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	color: #666;
+}
+
+.tree-item-label {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tree-item-children {
+	padding-left: 24px;
+}
+
+[data-tree-children][data-drop-target-state='is-innermost-over'] {
+	outline: 2px dashed #0052cc;
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+.draft-badge {
+	font-size: 11px;
+	background: #e0e0e0;
+	color: #666;
+	padding: 2px 6px;
+	border-radius: 4px;
+	margin-left: 8px;
+}
+
+.action-button {
+	position: absolute;
+	top: 50%;
+	right: 8px;
+	transform: translateY(-50%);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border: none;
+	background: transparent;
+	border-radius: 4px;
+	cursor: pointer;
+	color: #666;
+	opacity: 0;
+	transition: opacity 0.15s;
+}
+
+[data-tree-item]:hover .action-button {
+	opacity: 1;
+}
+
+.action-button:hover {
+	background: #e0e0e0;
+}
+
+.action-button:focus {
+	opacity: 1;
+	outline: 2px solid #0052cc;
+	outline-offset: -2px;
+}
+
+.composed-action {
+	top: 8px;
+	transform: none;
+}
+
+/* Drop Indicator styles */
+[data-drop-indicator] {
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 2px;
+	background: #0052cc;
+	pointer-events: none;
+}
+
+[data-drop-indicator][data-edge='top'] {
+	top: 0;
+}
+
+[data-drop-indicator][data-edge='bottom'] {
+	bottom: 0;
+}
+
+/* Move Dialog styles */
+.move-dialog-backdrop {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 100;
+}
+
+.move-dialog-popup {
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	background: #fff;
+	border-radius: 8px;
+	padding: 24px;
+	width: 400px;
+	max-width: 90vw;
+	box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+	z-index: 101;
+}
+
+.move-dialog-popup h2 {
+	margin: 0 0 16px;
+}
+
+.move-dialog-popup label {
+	display: block;
+	margin-bottom: 16px;
+}
+
+.move-dialog-popup label > span {
+	display: block;
+	font-size: 12px;
+	font-weight: 500;
+	color: #666;
+	margin-bottom: 4px;
+}
+
+.move-dialog-select-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: 8px 12px;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	background: #fff;
+	cursor: pointer;
+	font-size: 14px;
+}
+
+.move-dialog-select-trigger:focus {
+	outline: 2px solid #0052cc;
+	outline-offset: -2px;
+}
+
+.move-dialog-select-popup {
+	background: #fff;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	max-height: 200px;
+	overflow: auto;
+	z-index: 102;
+}
+
+.move-dialog-select-option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	cursor: pointer;
+}
+
+.move-dialog-select-option:hover {
+	background: #f0f0f0;
+}
+
+.move-dialog-select-option[data-selected] {
+	background: #e8f0fe;
+}
+
+.move-dialog-select-indicator {
+	width: 16px;
+	color: #0052cc;
+}
+
+.move-dialog-button {
+	padding: 8px 16px;
+	border-radius: 4px;
+	font-size: 14px;
+	cursor: pointer;
+	border: none;
+}
+
+.move-dialog-button-cancel {
+	background: transparent;
+	color: #666;
+}
+
+.move-dialog-button-cancel:hover {
+	background: #f0f0f0;
+}
+
+.move-dialog-button-primary {
+	background: #0052cc;
+	color: #fff;
+}
+
+.move-dialog-button-primary:hover {
+	background: #0047b3;
+}
