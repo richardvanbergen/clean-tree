@@ -1,15 +1,17 @@
-import { test, expect, describe } from 'bun:test';
-import type { TreeItem } from '../primitives/types.ts';
+import { describe, expect, test } from "bun:test";
+import type { TreeItem } from "../primitives/types.ts";
 import type {
-	TreeEventType,
-	TreeEventListener,
 	BranchHandlers,
 	PendingItem,
-} from './tree-root-context.tsx';
+	TreeEventListener,
+	TreeEventType,
+} from "./tree-root-context.tsx";
 
 // --- Pure JS test harness (no React, no DOM) ---
 
-function createEventEmitter(branchRegistry?: Map<string | null, BranchHandlers>) {
+function createEventEmitter(
+	branchRegistry?: Map<string | null, BranchHandlers>,
+) {
 	const listeners = new Set<TreeEventListener>();
 	const pendingItems = new Map<string | null, PendingItem[]>();
 	const savedBranchState = new Map<string | null, TreeItem[]>();
@@ -17,13 +19,17 @@ function createEventEmitter(branchRegistry?: Map<string | null, BranchHandlers>)
 	return {
 		addEventListener(listener: TreeEventListener): () => void {
 			listeners.add(listener);
-			return () => { listeners.delete(listener); };
+			return () => {
+				listeners.delete(listener);
+			};
 		},
 		dispatchEvent(event: TreeEventType) {
-			listeners.forEach(listener => listener(event));
+			listeners.forEach((listener) => {
+				listener(event);
+			});
 
 			// Queue items for unmounted target branches (mirrors tree-root-context.tsx)
-			if (event.type === 'item-drop-requested' && branchRegistry) {
+			if (event.type === "item-drop-requested" && branchRegistry) {
 				const { targetBranchId, item, targetIndex } = event.payload;
 				if (!branchRegistry.has(targetBranchId)) {
 					const pending = pendingItems.get(targetBranchId) ?? [];
@@ -54,7 +60,9 @@ function createBranchRegistry() {
 	return {
 		register(id: string | null, handlers: BranchHandlers): () => void {
 			registry.set(id, handlers);
-			return () => { registry.delete(id); };
+			return () => {
+				registry.delete(id);
+			};
 		},
 
 		findItemBranch(itemId: string): string | null | undefined {
@@ -66,7 +74,7 @@ function createBranchRegistry() {
 
 		getItem(itemId: string): TreeItem | undefined {
 			for (const handlers of registry.values()) {
-				const item = handlers.getItems().find(i => i.id === itemId);
+				const item = handlers.getItems().find((i) => i.id === itemId);
 				if (item) return item;
 			}
 			return undefined;
@@ -95,7 +103,10 @@ function createBranchRegistry() {
 			return path;
 		},
 
-		itemHasChildren(itemId: string, initialData?: Map<string | null, TreeItem[]>): boolean {
+		itemHasChildren(
+			itemId: string,
+			initialData?: Map<string | null, TreeItem[]>,
+		): boolean {
 			const handlers = registry.get(itemId);
 			if (handlers) return handlers.getItems().length > 0;
 			return (initialData?.get(itemId)?.length ?? 0) > 0;
@@ -124,7 +135,7 @@ function createTestBranch(
 	// Register handlers (same as BranchHandlers in tree-root-context)
 	const handlers: BranchHandlers = {
 		getItems: () => items,
-		containsItem: (itemId: string) => items.some(i => i.id === itemId),
+		containsItem: (itemId: string) => items.some((i) => i.id === itemId),
 	};
 	const unregister = registry.register(id, handlers);
 
@@ -137,24 +148,26 @@ function createTestBranch(
 		newItems.splice(clampedIndex, 0, item);
 		items = newItems;
 		emitter.dispatchEvent({
-			type: 'item-added',
+			type: "item-added",
 			payload: { branchId: id, itemId: item.id },
 		});
 	}
 
 	// Subscribe to events (same logic as tree-branch.tsx useEffect)
 	const unsubscribe = emitter.addEventListener((event) => {
-		if (event.type === 'item-drop-requested') {
-			const { item, sourceBranchId, targetBranchId, targetIndex } = event.payload;
+		if (event.type === "item-drop-requested") {
+			const { item, sourceBranchId, targetBranchId, targetIndex } =
+				event.payload;
 
 			// Same branch reorder
 			if (sourceBranchId === id && targetBranchId === id) {
-				const fromIndex = items.findIndex(i => i.id === item.id);
+				const fromIndex = items.findIndex((i) => i.id === item.id);
 				if (fromIndex === -1) return;
 				const newItems = [...items];
 				const removed = newItems.splice(fromIndex, 1);
 				if (!removed[0]) return;
-				const adjustedIndex = targetIndex > fromIndex ? targetIndex - 1 : targetIndex;
+				const adjustedIndex =
+					targetIndex > fromIndex ? targetIndex - 1 : targetIndex;
 				newItems.splice(adjustedIndex, 0, removed[0]);
 				items = newItems;
 				return;
@@ -162,7 +175,7 @@ function createTestBranch(
 
 			// Source: remove
 			if (sourceBranchId === id) {
-				items = items.filter(i => i.id !== item.id);
+				items = items.filter((i) => i.id !== item.id);
 			}
 
 			// Target: add
@@ -172,7 +185,7 @@ function createTestBranch(
 				newItems.splice(clampedIndex, 0, item);
 				items = newItems;
 				emitter.dispatchEvent({
-					type: 'item-added',
+					type: "item-added",
 					payload: { branchId: id, itemId: item.id },
 				});
 			}
@@ -181,7 +194,7 @@ function createTestBranch(
 
 	return {
 		getItems: () => items,
-		getItemIds: () => items.map(i => i.id),
+		getItemIds: () => items.map((i) => i.id),
 		cleanup: () => {
 			// Save state before unregistering (mirrors registerBranch cleanup)
 			emitter.saveBranchState(id, handlers.getItems());
@@ -192,10 +205,15 @@ function createTestBranch(
 }
 
 /** Convenience: create emitter + registry + multiple branches */
-function createTestTree(branches: Array<{ id: string | null; items: TreeItem[] }>) {
+function createTestTree(
+	branches: Array<{ id: string | null; items: TreeItem[] }>,
+) {
 	const registry = createBranchRegistry();
 	const emitter = createEventEmitter(registry._registry);
-	const branchMap = new Map<string | null, ReturnType<typeof createTestBranch>>();
+	const branchMap = new Map<
+		string | null,
+		ReturnType<typeof createTestBranch>
+	>();
 
 	for (const { id, items } of branches) {
 		branchMap.set(id, createTestBranch(id, items, emitter, registry));
@@ -204,29 +222,36 @@ function createTestTree(branches: Array<{ id: string | null; items: TreeItem[] }
 	return {
 		emitter,
 		registry,
-		branch(id: string | null) { return branchMap.get(id)!; },
-		cleanup() { branchMap.forEach(b => b.cleanup()); },
+		branch(id: string | null) {
+			// biome-ignore lint/style/noNonNullAssertion: test helper, branch must exist
+			return branchMap.get(id)!;
+		},
+		cleanup() {
+			branchMap.forEach((b) => {
+				b.cleanup();
+			});
+		},
 	};
 }
 
 // --- Tests ---
 
-describe('Event emitter', () => {
-	test('listeners receive dispatched events', () => {
+describe("Event emitter", () => {
+	test("listeners receive dispatched events", () => {
 		const emitter = createEventEmitter();
 		const events: TreeEventType[] = [];
 
 		emitter.addEventListener((e) => events.push(e));
 		emitter.dispatchEvent({
-			type: 'item-added',
-			payload: { branchId: null, itemId: 'test' },
+			type: "item-added",
+			payload: { branchId: null, itemId: "test" },
 		});
 
 		expect(events).toHaveLength(1);
-		expect(events[0]!.type).toBe('item-added');
+		expect(events[0]?.type).toBe("item-added");
 	});
 
-	test('cleanup function removes listener', () => {
+	test("cleanup function removes listener", () => {
 		const emitter = createEventEmitter();
 		const events: TreeEventType[] = [];
 
@@ -234,14 +259,14 @@ describe('Event emitter', () => {
 		cleanup();
 
 		emitter.dispatchEvent({
-			type: 'item-added',
-			payload: { branchId: null, itemId: 'test' },
+			type: "item-added",
+			payload: { branchId: null, itemId: "test" },
 		});
 
 		expect(events).toHaveLength(0);
 	});
 
-	test('multiple listeners all receive events', () => {
+	test("multiple listeners all receive events", () => {
 		const emitter = createEventEmitter();
 		const events1: TreeEventType[] = [];
 		const events2: TreeEventType[] = [];
@@ -250,8 +275,8 @@ describe('Event emitter', () => {
 		emitter.addEventListener((e) => events2.push(e));
 
 		emitter.dispatchEvent({
-			type: 'item-added',
-			payload: { branchId: null, itemId: 'x' },
+			type: "item-added",
+			payload: { branchId: null, itemId: "x" },
 		});
 
 		expect(events1).toHaveLength(1);
@@ -259,445 +284,468 @@ describe('Event emitter', () => {
 	});
 });
 
-describe('Branch registry', () => {
-	test('findItemBranch returns correct branch ID', () => {
+describe("Branch registry", () => {
+	test("findItemBranch returns correct branch ID", () => {
 		const registry = createBranchRegistry();
 
 		registry.register(null, {
-			getItems: () => [{ id: 'A' }, { id: 'B' }],
-			containsItem: (id) => id === 'A' || id === 'B',
+			getItems: () => [{ id: "A" }, { id: "B" }],
+			containsItem: (id) => id === "A" || id === "B",
 		});
-		registry.register('A', {
-			getItems: () => [{ id: 'A1' }, { id: 'A2' }],
-			containsItem: (id) => id === 'A1' || id === 'A2',
+		registry.register("A", {
+			getItems: () => [{ id: "A1" }, { id: "A2" }],
+			containsItem: (id) => id === "A1" || id === "A2",
 		});
 
-		expect(registry.findItemBranch('A')).toBe(null);
-		expect(registry.findItemBranch('B')).toBe(null);
-		expect(registry.findItemBranch('A1')).toBe('A');
-		expect(registry.findItemBranch('A2')).toBe('A');
-		expect(registry.findItemBranch('nonexistent')).toBeUndefined();
+		expect(registry.findItemBranch("A")).toBe(null);
+		expect(registry.findItemBranch("B")).toBe(null);
+		expect(registry.findItemBranch("A1")).toBe("A");
+		expect(registry.findItemBranch("A2")).toBe("A");
+		expect(registry.findItemBranch("nonexistent")).toBeUndefined();
 	});
 
-	test('getItem returns item data from any branch', () => {
+	test("getItem returns item data from any branch", () => {
 		const registry = createBranchRegistry();
 
 		registry.register(null, {
-			getItems: () => [{ id: 'X', isOpen: true }, { id: 'Y' }],
-			containsItem: (id) => id === 'X' || id === 'Y',
+			getItems: () => [{ id: "X", isOpen: true }, { id: "Y" }],
+			containsItem: (id) => id === "X" || id === "Y",
 		});
 
-		expect(registry.getItem('X')).toEqual({ id: 'X', isOpen: true });
-		expect(registry.getItem('Y')).toEqual({ id: 'Y' });
-		expect(registry.getItem('Z')).toBeUndefined();
+		expect(registry.getItem("X")).toEqual({ id: "X", isOpen: true });
+		expect(registry.getItem("Y")).toEqual({ id: "Y" });
+		expect(registry.getItem("Z")).toBeUndefined();
 	});
 
-	test('getPathToItem returns ancestor path', () => {
+	test("getPathToItem returns ancestor path", () => {
 		const registry = createBranchRegistry();
 
 		registry.register(null, {
-			getItems: () => [{ id: 'A' }, { id: 'B' }],
-			containsItem: (id) => id === 'A' || id === 'B',
+			getItems: () => [{ id: "A" }, { id: "B" }],
+			containsItem: (id) => id === "A" || id === "B",
 		});
-		registry.register('A', {
-			getItems: () => [{ id: 'A1' }, { id: 'A2' }],
-			containsItem: (id) => id === 'A1' || id === 'A2',
+		registry.register("A", {
+			getItems: () => [{ id: "A1" }, { id: "A2" }],
+			containsItem: (id) => id === "A1" || id === "A2",
 		});
-		registry.register('A1', {
-			getItems: () => [{ id: 'A1a' }],
-			containsItem: (id) => id === 'A1a',
+		registry.register("A1", {
+			getItems: () => [{ id: "A1a" }],
+			containsItem: (id) => id === "A1a",
 		});
 
-		expect(registry.getPathToItem('A')).toEqual([]);
-		expect(registry.getPathToItem('A1')).toEqual(['A']);
-		expect(registry.getPathToItem('A1a')).toEqual(['A', 'A1']);
-		expect(registry.getPathToItem('B')).toEqual([]);
+		expect(registry.getPathToItem("A")).toEqual([]);
+		expect(registry.getPathToItem("A1")).toEqual(["A"]);
+		expect(registry.getPathToItem("A1a")).toEqual(["A", "A1"]);
+		expect(registry.getPathToItem("B")).toEqual([]);
 	});
 
-	test('itemHasChildren checks registry then initial data', () => {
+	test("itemHasChildren checks registry then initial data", () => {
 		const registry = createBranchRegistry();
 
-		registry.register('A', {
-			getItems: () => [{ id: 'A1' }],
-			containsItem: (id) => id === 'A1',
+		registry.register("A", {
+			getItems: () => [{ id: "A1" }],
+			containsItem: (id) => id === "A1",
 		});
 
 		// Branch "A" is registered with items
-		expect(registry.itemHasChildren('A')).toBe(true);
+		expect(registry.itemHasChildren("A")).toBe(true);
 
 		// Branch "B" is not registered, no initial data
-		expect(registry.itemHasChildren('B')).toBe(false);
+		expect(registry.itemHasChildren("B")).toBe(false);
 
 		// Branch "C" is not registered but has initial data
 		const initialData = new Map<string | null, TreeItem[]>();
-		initialData.set('C', [{ id: 'C1' }]);
-		expect(registry.itemHasChildren('C', initialData)).toBe(true);
+		initialData.set("C", [{ id: "C1" }]);
+		expect(registry.itemHasChildren("C", initialData)).toBe(true);
 	});
 });
 
-describe('Same-branch reorder', () => {
-	test('move item downward (A,B,C → B,C,A)', () => {
+describe("Same-branch reorder", () => {
+	test("move item downward (A,B,C → B,C,A)", () => {
 		const tree = createTestTree([
-			{ id: null, items: [{ id: 'A' }, { id: 'B' }, { id: 'C' }] },
+			{ id: null, items: [{ id: "A" }, { id: "B" }, { id: "C" }] },
 		]);
 
 		tree.emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'A',
-				item: { id: 'A' },
+				itemId: "A",
+				item: { id: "A" },
 				sourceBranchId: null,
 				targetBranchId: null,
 				targetIndex: 3,
-				instruction: { type: 'reorder-below' } as any,
+				instruction: { type: "reorder-below" } as any,
 			},
 		});
 
-		expect(tree.branch(null).getItemIds()).toEqual(['B', 'C', 'A']);
+		expect(tree.branch(null).getItemIds()).toEqual(["B", "C", "A"]);
 		tree.cleanup();
 	});
 
-	test('move item upward (A,B,C → C,A,B)', () => {
+	test("move item upward (A,B,C → C,A,B)", () => {
 		const tree = createTestTree([
-			{ id: null, items: [{ id: 'A' }, { id: 'B' }, { id: 'C' }] },
+			{ id: null, items: [{ id: "A" }, { id: "B" }, { id: "C" }] },
 		]);
 
 		tree.emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'C',
-				item: { id: 'C' },
+				itemId: "C",
+				item: { id: "C" },
 				sourceBranchId: null,
 				targetBranchId: null,
 				targetIndex: 0,
-				instruction: { type: 'reorder-above' } as any,
+				instruction: { type: "reorder-above" } as any,
 			},
 		});
 
-		expect(tree.branch(null).getItemIds()).toEqual(['C', 'A', 'B']);
+		expect(tree.branch(null).getItemIds()).toEqual(["C", "A", "B"]);
 		tree.cleanup();
 	});
 
-	test('move to same position is a no-op', () => {
+	test("move to same position is a no-op", () => {
 		const tree = createTestTree([
-			{ id: null, items: [{ id: 'A' }, { id: 'B' }, { id: 'C' }] },
+			{ id: null, items: [{ id: "A" }, { id: "B" }, { id: "C" }] },
 		]);
 
 		// B is at index 1; reorder to index 1 should be no-op
 		tree.emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'B',
-				item: { id: 'B' },
+				itemId: "B",
+				item: { id: "B" },
 				sourceBranchId: null,
 				targetBranchId: null,
 				targetIndex: 1,
-				instruction: { type: 'reorder-above' } as any,
+				instruction: { type: "reorder-above" } as any,
 			},
 		});
 
-		expect(tree.branch(null).getItemIds()).toEqual(['A', 'B', 'C']);
+		expect(tree.branch(null).getItemIds()).toEqual(["A", "B", "C"]);
 		tree.cleanup();
 	});
 });
 
-describe('Cross-branch move', () => {
-	test('root → child branch', () => {
+describe("Cross-branch move", () => {
+	test("root → child branch", () => {
 		const tree = createTestTree([
-			{ id: null, items: [{ id: 'A', isOpen: true }, { id: 'B' }, { id: 'C' }] },
-			{ id: 'A', items: [{ id: 'A1' }] },
+			{
+				id: null,
+				items: [{ id: "A", isOpen: true }, { id: "B" }, { id: "C" }],
+			},
+			{ id: "A", items: [{ id: "A1" }] },
 		]);
 
 		tree.emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'B',
-				item: { id: 'B' },
+				itemId: "B",
+				item: { id: "B" },
 				sourceBranchId: null,
-				targetBranchId: 'A',
+				targetBranchId: "A",
 				targetIndex: 0,
-				instruction: { type: 'make-child' } as any,
+				instruction: { type: "make-child" } as any,
 			},
 		});
 
-		expect(tree.branch(null).getItemIds()).toEqual(['A', 'C']);
-		expect(tree.branch('A').getItemIds()).toEqual(['B', 'A1']);
+		expect(tree.branch(null).getItemIds()).toEqual(["A", "C"]);
+		expect(tree.branch("A").getItemIds()).toEqual(["B", "A1"]);
 		tree.cleanup();
 	});
 
-	test('child → root branch', () => {
+	test("child → root branch", () => {
 		const tree = createTestTree([
-			{ id: null, items: [{ id: 'A', isOpen: true }, { id: 'B' }] },
-			{ id: 'A', items: [{ id: 'A1' }, { id: 'A2' }] },
+			{ id: null, items: [{ id: "A", isOpen: true }, { id: "B" }] },
+			{ id: "A", items: [{ id: "A1" }, { id: "A2" }] },
 		]);
 
 		tree.emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'A1',
-				item: { id: 'A1' },
-				sourceBranchId: 'A',
+				itemId: "A1",
+				item: { id: "A1" },
+				sourceBranchId: "A",
 				targetBranchId: null,
 				targetIndex: 2,
-				instruction: { type: 'reorder-below' } as any,
+				instruction: { type: "reorder-below" } as any,
 			},
 		});
 
-		expect(tree.branch(null).getItemIds()).toEqual(['A', 'B', 'A1']);
-		expect(tree.branch('A').getItemIds()).toEqual(['A2']);
+		expect(tree.branch(null).getItemIds()).toEqual(["A", "B", "A1"]);
+		expect(tree.branch("A").getItemIds()).toEqual(["A2"]);
 		tree.cleanup();
 	});
 
-	test('child → different child branch', () => {
+	test("child → different child branch", () => {
 		const tree = createTestTree([
-			{ id: null, items: [{ id: 'A', isOpen: true }, { id: 'B', isOpen: true }] },
-			{ id: 'A', items: [{ id: 'A1' }, { id: 'A2' }] },
-			{ id: 'B', items: [{ id: 'B1' }] },
+			{
+				id: null,
+				items: [
+					{ id: "A", isOpen: true },
+					{ id: "B", isOpen: true },
+				],
+			},
+			{ id: "A", items: [{ id: "A1" }, { id: "A2" }] },
+			{ id: "B", items: [{ id: "B1" }] },
 		]);
 
 		tree.emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'A1',
-				item: { id: 'A1' },
-				sourceBranchId: 'A',
-				targetBranchId: 'B',
+				itemId: "A1",
+				item: { id: "A1" },
+				sourceBranchId: "A",
+				targetBranchId: "B",
 				targetIndex: 1,
-				instruction: { type: 'reorder-below' } as any,
+				instruction: { type: "reorder-below" } as any,
 			},
 		});
 
-		expect(tree.branch('A').getItemIds()).toEqual(['A2']);
-		expect(tree.branch('B').getItemIds()).toEqual(['B1', 'A1']);
+		expect(tree.branch("A").getItemIds()).toEqual(["A2"]);
+		expect(tree.branch("B").getItemIds()).toEqual(["B1", "A1"]);
 		tree.cleanup();
 	});
 
-	test('item-added event fires after add', () => {
+	test("item-added event fires after add", () => {
 		const tree = createTestTree([
-			{ id: null, items: [{ id: 'A' }, { id: 'B' }] },
-			{ id: 'A', items: [{ id: 'A1' }] },
+			{ id: null, items: [{ id: "A" }, { id: "B" }] },
+			{ id: "A", items: [{ id: "A1" }] },
 		]);
 
 		const addedEvents: TreeEventType[] = [];
 		tree.emitter.addEventListener((e) => {
-			if (e.type === 'item-added') addedEvents.push(e);
+			if (e.type === "item-added") addedEvents.push(e);
 		});
 
 		tree.emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'B',
-				item: { id: 'B' },
+				itemId: "B",
+				item: { id: "B" },
 				sourceBranchId: null,
-				targetBranchId: 'A',
+				targetBranchId: "A",
 				targetIndex: 0,
-				instruction: { type: 'make-child' } as any,
+				instruction: { type: "make-child" } as any,
 			},
 		});
 
 		expect(addedEvents).toHaveLength(1);
+		// biome-ignore lint/style/noNonNullAssertion: length asserted above
 		const addedEvent = addedEvents[0]!;
-		expect(addedEvent.type).toBe('item-added');
-		if (addedEvent.type === 'item-added') {
-			expect(addedEvent.payload.itemId).toBe('B');
-			expect(addedEvent.payload.branchId).toBe('A');
+		expect(addedEvent.type).toBe("item-added");
+		if (addedEvent.type === "item-added") {
+			expect(addedEvent.payload.itemId).toBe("B");
+			expect(addedEvent.payload.branchId).toBe("A");
 		}
 		tree.cleanup();
 	});
 });
 
-describe('Listener ordering (race condition regression)', () => {
-	test('move succeeds regardless of branch registration order', () => {
+describe("Listener ordering (race condition regression)", () => {
+	test("move succeeds regardless of branch registration order", () => {
 		// Branch A registered first, Branch B second.
 		// When dispatching a move from A→B, A's listener fires first (removes),
 		// then B's listener fires (adds). Both work independently because
 		// the item data is in the payload.
 		const tree = createTestTree([
-			{ id: 'A', items: [{ id: 'X' }, { id: 'Y' }] },
-			{ id: 'B', items: [{ id: 'Z' }] },
+			{ id: "A", items: [{ id: "X" }, { id: "Y" }] },
+			{ id: "B", items: [{ id: "Z" }] },
 		]);
 
 		tree.emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'X',
-				item: { id: 'X' },
-				sourceBranchId: 'A',
-				targetBranchId: 'B',
+				itemId: "X",
+				item: { id: "X" },
+				sourceBranchId: "A",
+				targetBranchId: "B",
 				targetIndex: 0,
-				instruction: { type: 'reorder-above' } as any,
+				instruction: { type: "reorder-above" } as any,
 			},
 		});
 
-		expect(tree.branch('A').getItemIds()).toEqual(['Y']);
-		expect(tree.branch('B').getItemIds()).toEqual(['X', 'Z']);
+		expect(tree.branch("A").getItemIds()).toEqual(["Y"]);
+		expect(tree.branch("B").getItemIds()).toEqual(["X", "Z"]);
 		tree.cleanup();
 	});
 
-	test('move succeeds with reversed registration order', () => {
+	test("move succeeds with reversed registration order", () => {
 		// Register B first, then A — opposite order
 		const emitter = createEventEmitter();
 		const registry = createBranchRegistry();
 
-		const branchB = createTestBranch('B', [{ id: 'Z' }], emitter, registry);
-		const branchA = createTestBranch('A', [{ id: 'X' }, { id: 'Y' }], emitter, registry);
+		const branchB = createTestBranch("B", [{ id: "Z" }], emitter, registry);
+		const branchA = createTestBranch(
+			"A",
+			[{ id: "X" }, { id: "Y" }],
+			emitter,
+			registry,
+		);
 
 		emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'X',
-				item: { id: 'X' },
-				sourceBranchId: 'A',
-				targetBranchId: 'B',
+				itemId: "X",
+				item: { id: "X" },
+				sourceBranchId: "A",
+				targetBranchId: "B",
 				targetIndex: 0,
-				instruction: { type: 'reorder-above' } as any,
+				instruction: { type: "reorder-above" } as any,
 			},
 		});
 
-		expect(branchA.getItemIds()).toEqual(['Y']);
-		expect(branchB.getItemIds()).toEqual(['X', 'Z']);
+		expect(branchA.getItemIds()).toEqual(["Y"]);
+		expect(branchB.getItemIds()).toEqual(["X", "Z"]);
 
 		branchA.cleanup();
 		branchB.cleanup();
 	});
 });
 
-describe('Edge cases', () => {
-	test('move to index beyond array length clamps', () => {
+describe("Edge cases", () => {
+	test("move to index beyond array length clamps", () => {
 		const tree = createTestTree([
-			{ id: null, items: [{ id: 'A' }, { id: 'B' }] },
-			{ id: 'A', items: [] },
+			{ id: null, items: [{ id: "A" }, { id: "B" }] },
+			{ id: "A", items: [] },
 		]);
 
 		tree.emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'B',
-				item: { id: 'B' },
+				itemId: "B",
+				item: { id: "B" },
 				sourceBranchId: null,
-				targetBranchId: 'A',
+				targetBranchId: "A",
 				targetIndex: 999,
-				instruction: { type: 'reorder-below' } as any,
+				instruction: { type: "reorder-below" } as any,
 			},
 		});
 
-		expect(tree.branch(null).getItemIds()).toEqual(['A']);
-		expect(tree.branch('A').getItemIds()).toEqual(['B']);
+		expect(tree.branch(null).getItemIds()).toEqual(["A"]);
+		expect(tree.branch("A").getItemIds()).toEqual(["B"]);
 		tree.cleanup();
 	});
 
-	test('move item that does not exist in source is a no-op for source', () => {
+	test("move item that does not exist in source is a no-op for source", () => {
 		const tree = createTestTree([
-			{ id: null, items: [{ id: 'A' }, { id: 'B' }] },
-			{ id: 'X', items: [{ id: 'X1' }] },
+			{ id: null, items: [{ id: "A" }, { id: "B" }] },
+			{ id: "X", items: [{ id: "X1" }] },
 		]);
 
 		// Claim source is branch X, but item 'ghost' doesn't exist there
 		tree.emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'ghost',
-				item: { id: 'ghost' },
-				sourceBranchId: 'X',
+				itemId: "ghost",
+				item: { id: "ghost" },
+				sourceBranchId: "X",
 				targetBranchId: null,
 				targetIndex: 0,
-				instruction: { type: 'reorder-above' } as any,
+				instruction: { type: "reorder-above" } as any,
 			},
 		});
 
 		// Source unchanged (filter for non-existent item is harmless)
-		expect(tree.branch('X').getItemIds()).toEqual(['X1']);
+		expect(tree.branch("X").getItemIds()).toEqual(["X1"]);
 		// Target got the item (it trusts the payload)
-		expect(tree.branch(null).getItemIds()).toEqual(['ghost', 'A', 'B']);
+		expect(tree.branch(null).getItemIds()).toEqual(["ghost", "A", "B"]);
 		tree.cleanup();
 	});
 
-	test('make-child on item with no existing branch queues item for late mount', () => {
+	test("make-child on item with no existing branch queues item for late mount", () => {
 		const registry = createBranchRegistry();
 		const emitter = createEventEmitter(registry._registry);
 
 		// Only root branch exists — no branch for 'A'
-		const root = createTestBranch(null, [{ id: 'A' }, { id: 'B' }], emitter, registry);
+		const root = createTestBranch(
+			null,
+			[{ id: "A" }, { id: "B" }],
+			emitter,
+			registry,
+		);
 
 		// Dispatch a move targeting branch 'A' which doesn't exist yet
 		emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'B',
-				item: { id: 'B' },
+				itemId: "B",
+				item: { id: "B" },
 				sourceBranchId: null,
-				targetBranchId: 'A',
+				targetBranchId: "A",
 				targetIndex: 0,
-				instruction: { type: 'make-child' } as any,
+				instruction: { type: "make-child" } as any,
 			},
 		});
 
 		// Source removed the item
-		expect(root.getItemIds()).toEqual(['A']);
+		expect(root.getItemIds()).toEqual(["A"]);
 
 		// Now branch 'A' mounts (e.g. after expandItem triggers React render)
-		const branchA = createTestBranch('A', [], emitter, registry);
+		const branchA = createTestBranch("A", [], emitter, registry);
 
 		// The pending item should have been picked up on mount
-		expect(branchA.getItemIds()).toEqual(['B']);
+		expect(branchA.getItemIds()).toEqual(["B"]);
 
 		root.cleanup();
 		branchA.cleanup();
 	});
 
-	test('moving parent preserves child branch state across unmount/remount', () => {
+	test("moving parent preserves child branch state across unmount/remount", () => {
 		// Scenario: Drop B into A (B becomes child of A), then drop A into C.
 		// A's child branch unmounts when A leaves root, then remounts under C.
 		// B should still be in A's children.
 		const registry = createBranchRegistry();
 		const emitter = createEventEmitter(registry._registry);
 
-		const root = createTestBranch(null, [
-			{ id: 'A', isOpen: true }, { id: 'B' }, { id: 'C' },
-		], emitter, registry);
-		const branchA = createTestBranch('A', [], emitter, registry);
+		const root = createTestBranch(
+			null,
+			[{ id: "A", isOpen: true }, { id: "B" }, { id: "C" }],
+			emitter,
+			registry,
+		);
+		const branchA = createTestBranch("A", [], emitter, registry);
 
 		// Step 1: Drop B into A (make-child)
 		emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'B',
-				item: { id: 'B' },
+				itemId: "B",
+				item: { id: "B" },
 				sourceBranchId: null,
-				targetBranchId: 'A',
+				targetBranchId: "A",
 				targetIndex: 0,
-				instruction: { type: 'make-child' } as any,
+				instruction: { type: "make-child" } as any,
 			},
 		});
 
-		expect(root.getItemIds()).toEqual(['A', 'C']);
-		expect(branchA.getItemIds()).toEqual(['B']);
+		expect(root.getItemIds()).toEqual(["A", "C"]);
+		expect(branchA.getItemIds()).toEqual(["B"]);
 
 		// Step 2: A moves from root to C (make-child).
 		// Simulate what React does: branch A unmounts (cleanup), then remounts.
 		branchA.cleanup(); // branch A unmounts — state [B] saved
 
 		emitter.dispatchEvent({
-			type: 'item-drop-requested',
+			type: "item-drop-requested",
 			payload: {
-				itemId: 'A',
-				item: { id: 'A', isOpen: true },
+				itemId: "A",
+				item: { id: "A", isOpen: true },
 				sourceBranchId: null,
-				targetBranchId: 'C',
+				targetBranchId: "C",
 				targetIndex: 0,
-				instruction: { type: 'make-child' } as any,
+				instruction: { type: "make-child" } as any,
 			},
 		});
 
-		expect(root.getItemIds()).toEqual(['C']);
+		expect(root.getItemIds()).toEqual(["C"]);
 
 		// C's branch mounts (picks up A from pending items)
-		const branchC = createTestBranch('C', [], emitter, registry);
-		expect(branchC.getItemIds()).toEqual(['A']);
+		const branchC = createTestBranch("C", [], emitter, registry);
+		expect(branchC.getItemIds()).toEqual(["A"]);
 
 		// Branch A remounts under C — should restore saved state [B]
-		const branchA2 = createTestBranch('A', [], emitter, registry);
-		expect(branchA2.getItemIds()).toEqual(['B']);
+		const branchA2 = createTestBranch("A", [], emitter, registry);
+		expect(branchA2.getItemIds()).toEqual(["B"]);
 
 		root.cleanup();
 		branchC.cleanup();

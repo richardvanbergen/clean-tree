@@ -1,18 +1,18 @@
 // Types
-export type { TreeItem, TreeItemData } from './primitives/types.ts';
+
+// High-level component
+export { type Instruction, Tree, type TreeProps } from "./components/tree.tsx";
 
 // Core components
 export {
-	TreeProvider,
 	TreeBranch,
+	type TreeBranchProps,
 	TreeItem as TreeItemCore,
 	TreeItemContext,
-	useTreeBranch,
-	type TreeProviderProps,
-	type TreeBranchProps,
 	type TreeItemProps,
 	type TreeItemRenderProps,
-} from './core/index.ts';
-
-// High-level component
-export { Tree, type TreeProps, type Instruction } from './components/tree.tsx';
+	TreeProvider,
+	type TreeProviderProps,
+	useTreeBranch,
+} from "./core/index.ts";
+export type { TreeItem, TreeItemData } from "./primitives/types.ts";

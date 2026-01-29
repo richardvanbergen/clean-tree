@@ -1,1 +1,1 @@
-export { Tree, type TreeProps, type Instruction } from './tree.tsx';
+export { type Instruction, Tree, type TreeProps } from "./tree.tsx";

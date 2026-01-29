@@ -1,32 +1,39 @@
+import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
+import {
+	draggable,
+	dropTargetForElements,
+	type ElementDropTargetEventBasePayload,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { pointerOutsideOfPreview } from "@atlaskit/pragmatic-drag-and-drop/element/pointer-outside-of-preview";
+import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
+import type { Instruction } from "@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item";
 import React, {
 	createContext,
+	type HTMLAttributes,
 	memo,
+	type ReactNode,
 	useCallback,
 	useContext,
 	useEffect,
 	useMemo,
 	useRef,
 	useState,
-	type ReactNode,
-	type HTMLAttributes,
-} from 'react';
-import invariant from 'tiny-invariant';
-import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+} from "react";
+import { createRoot } from "react-dom/client";
+import invariant from "tiny-invariant";
+import type { TreeItem as TreeItemType } from "../primitives/types.ts";
 import {
-	draggable,
-	dropTargetForElements,
-	type ElementDropTargetEventBasePayload,
-} from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
-import { pointerOutsideOfPreview } from '@atlaskit/pragmatic-drag-and-drop/element/pointer-outside-of-preview';
-import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview';
-import type { Instruction } from '@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item';
-import { createRoot } from 'react-dom/client';
+	DependencyContext,
+	type DependencyContextValue,
+	TreeContext,
+	type TreeContextValue,
+} from "./contexts.ts";
+import {
+	TreeBranchContext,
+	type TreeBranchContextValue,
+} from "./tree-branch.tsx";
 
-import { TreeContext, DependencyContext } from './contexts.ts';
-import { TreeBranchContext } from './tree-branch.tsx';
-import type { TreeItem as TreeItemType } from '../primitives/types.ts';
-
-export type TreeItemState = 'idle' | 'dragging';
+export type TreeItemState = "idle" | "dragging";
 
 export type TreeItemContextValue = {
 	item: TreeItemType;
@@ -65,7 +72,7 @@ export type TreeItemRenderProps = {
 	dragHandleRef: React.RefObject<HTMLElement | null>;
 };
 
-export type TreeItemProps = Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
+export type TreeItemProps = Omit<HTMLAttributes<HTMLDivElement>, "children"> & {
 	item: TreeItemType;
 	level: number;
 	index: number;
@@ -74,74 +81,100 @@ export type TreeItemProps = Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
 	children: (props: TreeItemRenderProps) => ReactNode;
 };
 
-export const TreeItem = memo(function TreeItem({
-	item,
-	level,
-	index,
-	indentPerLevel = 20,
-	renderDragPreview,
-	children,
-	...props
-}: TreeItemProps) {
-	const dragHandleRef = useRef<HTMLElement>(null);
-	const rowRef = useRef<HTMLDivElement>(null);
+function useChildrenTracking(
+	itemId: string,
+	itemHasChildren: (id: string) => boolean,
+	addEventListener: TreeContextValue["addEventListener"],
+	branchContext: TreeBranchContextValue | null,
+) {
+	const [hasChildren, setHasChildren] = useState(() => itemHasChildren(itemId));
 
-	const [state, setState] = useState<TreeItemState>('idle');
-	const [instruction, setInstruction] = useState<Instruction | null>(null);
-	const cancelExpandRef = useRef<(() => void) | null>(null);
-
-	const { uniqueContextId, registerTreeItem, getPathToItem, findItemBranch, getItem, itemHasChildren, addEventListener, dispatchEvent } = useContext(TreeContext);
-	const { attachInstruction, extractInstruction } = useContext(DependencyContext);
-	const branchContext = useContext(TreeBranchContext);
-
-	const isOpen = item.isOpen ?? false;
-	const [hasChildren, setHasChildren] = useState(() => itemHasChildren(item.id));
-
-	// Subscribe to branch-children-changed events for reactive hasChildren
 	useEffect(() => {
-		// Sync in case value changed between render and effect
-		setHasChildren(itemHasChildren(item.id));
+		setHasChildren(itemHasChildren(itemId));
 
 		return addEventListener((event) => {
-			if (event.type === 'branch-children-changed' && event.payload.branchId === item.id) {
+			if (
+				event.type === "branch-children-changed" &&
+				event.payload.branchId === itemId
+			) {
 				setHasChildren(event.payload.hasChildren);
-				// Auto-collapse when branch becomes empty
 				if (!event.payload.hasChildren && branchContext) {
-					branchContext.collapseItem(item.id);
+					branchContext.collapseItem(itemId);
 				}
 			}
 		});
-	}, [item.id, itemHasChildren, addEventListener, branchContext]);
+	}, [itemId, itemHasChildren, addEventListener, branchContext]);
 
-	const toggleOpen = useCallback(() => {
-		if (branchContext) {
-			branchContext.toggleItem(item.id);
-		}
-	}, [branchContext, item.id]);
+	return hasChildren;
+}
 
-	const expandItem = useCallback(() => {
-		if (branchContext) {
-			branchContext.expandItem(item.id);
-		}
-	}, [branchContext, item.id]);
-
-	// Register tree item
+function useTreeItemRegistration(
+	itemId: string,
+	elementRef: React.RefObject<HTMLDivElement | null>,
+	registerTreeItem: (args: {
+		itemId: string;
+		element: HTMLElement;
+		actionMenuTrigger: HTMLElement;
+	}) => () => void,
+) {
 	useEffect(() => {
-		const element = rowRef.current;
+		const element = elementRef.current;
 		if (!element) return;
 		return registerTreeItem({
-			itemId: item.id,
+			itemId,
 			element,
 			actionMenuTrigger: element,
 		});
-	}, [item.id, registerTreeItem]);
+	}, [itemId, elementRef, registerTreeItem]);
+}
+
+function useTreeItemDragAndDrop({
+	item,
+	index,
+	level,
+	indentPerLevel,
+	isOpen,
+	hasChildren,
+	expandItem,
+	rowRef,
+	uniqueContextId,
+	extractInstruction,
+	attachInstruction,
+	getPathToItem,
+	findItemBranch,
+	getItem,
+	dispatchEvent,
+	branchContext,
+	renderDragPreview,
+}: {
+	item: TreeItemType;
+	index: number;
+	level: number;
+	indentPerLevel: number;
+	isOpen: boolean;
+	hasChildren: boolean;
+	expandItem: () => void;
+	rowRef: React.RefObject<HTMLDivElement | null>;
+	uniqueContextId: TreeContextValue["uniqueContextId"];
+	extractInstruction: DependencyContextValue["extractInstruction"];
+	attachInstruction: DependencyContextValue["attachInstruction"];
+	getPathToItem: TreeContextValue["getPathToItem"];
+	findItemBranch: TreeContextValue["findItemBranch"];
+	getItem: TreeContextValue["getItem"];
+	dispatchEvent: TreeContextValue["dispatchEvent"];
+	branchContext: TreeBranchContextValue | null;
+	renderDragPreview?: (item: TreeItemType) => ReactNode;
+}) {
+	const dragHandleRef = useRef<HTMLElement>(null);
+	const cancelExpandRef = useRef<(() => void) | null>(null);
+	const [state, setState] = useState<TreeItemState>("idle");
+	const [instruction, setInstruction] = useState<Instruction | null>(null);
 
 	const cancelExpand = useCallback(() => {
 		cancelExpandRef.current?.();
 		cancelExpandRef.current = null;
 	}, []);
 
-	// Setup drag and drop
 	useEffect(() => {
 		const element = rowRef.current;
 		const dragHandle = dragHandleRef.current ?? element;
@@ -149,7 +182,6 @@ export const TreeItem = memo(function TreeItem({
 		invariant(dragHandle);
 
 		function onChange({ self, location }: ElementDropTargetEventBasePayload) {
-			// Only show instruction on innermost drop target
 			const innerMost = location.current.dropTargets[0];
 			if (innerMost?.element !== self.element) {
 				setInstruction(null);
@@ -158,9 +190,8 @@ export const TreeItem = memo(function TreeItem({
 
 			const instruction = extractInstruction(self.data) as Instruction | null;
 
-			// Auto-expand after 500ms when hovering to make-child
 			if (
-				instruction?.type === 'make-child' &&
+				instruction?.type === "make-child" &&
 				hasChildren &&
 				!isOpen &&
 				!cancelExpandRef.current
@@ -170,7 +201,7 @@ export const TreeItem = memo(function TreeItem({
 					fn: expandItem,
 				});
 			}
-			if (instruction?.type !== 'make-child' && cancelExpandRef.current) {
+			if (instruction?.type !== "make-child" && cancelExpandRef.current) {
 				cancelExpand();
 			}
 
@@ -182,25 +213,25 @@ export const TreeItem = memo(function TreeItem({
 				element: dragHandle,
 				getInitialData: () => ({
 					id: item.id,
-					type: 'tree-item',
+					type: "tree-item",
 					isOpenOnDragStart: isOpen,
 					uniqueContextId,
 				}),
 				onGenerateDragPreview: renderDragPreview
 					? ({ nativeSetDragImage }) => {
-						setCustomNativeDragPreview({
-							getOffset: pointerOutsideOfPreview({ x: '16px', y: '8px' }),
-							render: ({ container }) => {
-								const root = createRoot(container);
-								root.render(renderDragPreview(item));
-								return () => root.unmount();
-							},
-							nativeSetDragImage,
-						});
-					}
+							setCustomNativeDragPreview({
+								getOffset: pointerOutsideOfPreview({ x: "16px", y: "8px" }),
+								render: ({ container }) => {
+									const root = createRoot(container);
+									root.render(renderDragPreview(item));
+									return () => root.unmount();
+								},
+								nativeSetDragImage,
+							});
+						}
 					: undefined,
-				onDragStart: () => setState('dragging'),
-				onDrop: () => setState('idle'),
+				onDragStart: () => setState("dragging"),
+				onDrop: () => setState("idle"),
 			}),
 			dropTargetForElements({
 				element,
@@ -212,16 +243,15 @@ export const TreeItem = memo(function TreeItem({
 						element,
 						indentPerLevel,
 						currentLevel: level,
-						mode: isOpen ? 'expanded' : 'standard',
+						mode: isOpen ? "expanded" : "standard",
 						block: [],
 					});
 				},
 				canDrop: ({ source }) => {
-					if (source.data.type !== 'tree-item') return false;
+					if (source.data.type !== "tree-item") return false;
 					if (source.data.id === item.id) return false;
 					if (source.data.uniqueContextId !== uniqueContextId) return false;
 
-					// Prevent dropping onto descendants
 					const pathToTarget = getPathToItem(item.id);
 					const draggedId = source.data.id as string;
 					if (pathToTarget.includes(draggedId)) return false;
@@ -247,46 +277,46 @@ export const TreeItem = memo(function TreeItem({
 					const draggedItemId = source.data.id as string;
 					const targetId = target.data.id as string;
 					const targetIndex = target.data.index as number;
-					const dropInstruction = extractInstruction(target.data) as Instruction | null;
+					const dropInstruction = extractInstruction(
+						target.data,
+					) as Instruction | null;
 
 					if (!dropInstruction) return;
 
-					// Look up the dragged item and its source branch
 					const sourceBranchId = findItemBranch(draggedItemId);
 					if (sourceBranchId === undefined) return;
 
 					const draggedItem = getItem(draggedItemId);
 					if (!draggedItem) return;
 
-					// Determine target branch and index based on instruction
 					let targetBranchId: string | null = null;
 					let finalIndex = targetIndex;
 
 					switch (dropInstruction.type) {
-						case 'reorder-above':
+						case "reorder-above":
 							targetBranchId = findItemBranch(targetId) ?? null;
 							finalIndex = targetIndex;
 							break;
 
-						case 'reorder-below':
+						case "reorder-below":
 							targetBranchId = findItemBranch(targetId) ?? null;
 							finalIndex = targetIndex + 1;
 							break;
 
-						case 'make-child':
+						case "make-child":
 							targetBranchId = targetId;
 							finalIndex = 0;
-							// Auto-expand target if not open
 							if (branchContext) {
 								branchContext.expandItem(targetId);
 							}
 							break;
 
-						case 'reparent': {
+						case "reparent": {
 							const path = getPathToItem(targetId);
-							const ancestorId = dropInstruction.desiredLevel === 0
-								? null
-								: path[dropInstruction.desiredLevel - 1] ?? null;
+							const ancestorId =
+								dropInstruction.desiredLevel === 0
+									? null
+									: (path[dropInstruction.desiredLevel - 1] ?? null);
 							targetBranchId = ancestorId;
 							finalIndex = targetIndex + 1;
 							break;
@@ -295,9 +325,8 @@ export const TreeItem = memo(function TreeItem({
 
 					if (targetBranchId === undefined) return;
 
-					// Dispatch drop request event with full item data
 					dispatchEvent({
-						type: 'item-drop-requested',
+						type: "item-drop-requested",
 						payload: {
 							itemId: draggedItemId,
 							item: draggedItem,
@@ -328,12 +357,83 @@ export const TreeItem = memo(function TreeItem({
 		dispatchEvent,
 		branchContext,
 		renderDragPreview,
+		rowRef,
 	]);
 
 	// Cleanup on unmount
 	useEffect(() => {
 		return () => cancelExpand();
 	}, [cancelExpand]);
+
+	return { state, instruction, dragHandleRef };
+}
+
+export const TreeItem = memo(function TreeItem({
+	item,
+	level,
+	index,
+	indentPerLevel = 20,
+	renderDragPreview,
+	children,
+	...props
+}: TreeItemProps) {
+	const rowRef = useRef<HTMLDivElement>(null);
+
+	const {
+		uniqueContextId,
+		registerTreeItem,
+		getPathToItem,
+		findItemBranch,
+		getItem,
+		itemHasChildren,
+		addEventListener,
+		dispatchEvent,
+	} = useContext(TreeContext);
+	const { attachInstruction, extractInstruction } =
+		useContext(DependencyContext);
+	const branchContext = useContext(TreeBranchContext);
+
+	const isOpen = item.isOpen ?? false;
+	const hasChildren = useChildrenTracking(
+		item.id,
+		itemHasChildren,
+		addEventListener,
+		branchContext,
+	);
+
+	useTreeItemRegistration(item.id, rowRef, registerTreeItem);
+
+	const toggleOpen = useCallback(() => {
+		if (branchContext) {
+			branchContext.toggleItem(item.id);
+		}
+	}, [branchContext, item.id]);
+
+	const expandItem = useCallback(() => {
+		if (branchContext) {
+			branchContext.expandItem(item.id);
+		}
+	}, [branchContext, item.id]);
+
+	const { state, instruction, dragHandleRef } = useTreeItemDragAndDrop({
+		item,
+		index,
+		level,
+		indentPerLevel,
+		isOpen,
+		hasChildren,
+		expandItem,
+		rowRef,
+		uniqueContextId,
+		extractInstruction,
+		attachInstruction,
+		getPathToItem,
+		findItemBranch,
+		getItem,
+		dispatchEvent,
+		branchContext,
+		renderDragPreview,
+	});
 
 	const contextValue = useMemo<TreeItemContextValue>(
 		() => ({
@@ -346,7 +446,16 @@ export const TreeItem = memo(function TreeItem({
 			toggleOpen,
 			dragHandleRef,
 		}),
-		[item, level, state, instruction, isOpen, hasChildren, toggleOpen],
+		[
+			item,
+			level,
+			state,
+			instruction,
+			isOpen,
+			hasChildren,
+			toggleOpen,
+			dragHandleRef,
+		],
 	);
 
 	const renderProps: TreeItemRenderProps = {
@@ -362,7 +471,13 @@ export const TreeItem = memo(function TreeItem({
 
 	return (
 		<TreeItemContext.Provider value={contextValue}>
-			<div ref={rowRef} data-tree-item data-item-id={item.id} data-level={level} {...props}>
+			<div
+				ref={rowRef}
+				data-tree-item
+				data-item-id={item.id}
+				data-level={level}
+				{...props}
+			>
 				{children(renderProps)}
 			</div>
 		</TreeItemContext.Provider>

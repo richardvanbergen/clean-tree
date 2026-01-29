@@ -1,15 +1,15 @@
 import React, {
 	createContext,
+	type ReactNode,
 	useCallback,
 	useContext,
 	useEffect,
 	useMemo,
 	useRef,
 	useState,
-	type ReactNode,
-} from 'react';
-import { TreeRootContext, type BranchHandlers } from './tree-root-context.tsx';
-import type { TreeItem } from '../primitives/types.ts';
+} from "react";
+import type { TreeItem } from "../primitives/types.ts";
+import { type BranchHandlers, TreeRootContext } from "./tree-root-context.tsx";
 
 export type TreeBranchContextValue = {
 	parentId: string | null;
@@ -21,10 +21,12 @@ export type TreeBranchContextValue = {
 	collapseItem: (itemId: string) => void;
 };
 
-export const TreeBranchContext = createContext<TreeBranchContextValue | null>(null);
+export const TreeBranchContext = createContext<TreeBranchContextValue | null>(
+	null,
+);
 
 export type TreeBranchProps = {
-	id: string | null;  // null = root
+	id: string | null; // null = root
 	initialChildren?: TreeItem[];
 	loadChildren?: (id: string | null) => Promise<TreeItem[]>;
 	children: (items: TreeItem[], isLoading: boolean) => ReactNode;
@@ -43,12 +45,13 @@ export function TreeBranch({
 	// 2. Live registry (old branch still registered during same-commit remount)
 	// 3. Saved state (branch unmounted in a previous commit, e.g. collapse/expand)
 	// 4. Initial data from flattenTreeData
-	const [items, setItems] = useState<TreeItem[]>(() =>
-		initialChildren
-		?? rootContext?.getBranchItems(id)
-		?? rootContext?.consumeSavedBranchState(id)
-		?? rootContext?.getInitialBranchItems(id)
-		?? []
+	const [items, setItems] = useState<TreeItem[]>(
+		() =>
+			initialChildren ??
+			rootContext?.getBranchItems(id) ??
+			rootContext?.consumeSavedBranchState(id) ??
+			rootContext?.getInitialBranchItems(id) ??
+			[],
 	);
 	const [isLoading, setIsLoading] = useState(false);
 	const hasLoadedRef = useRef(false);
@@ -68,12 +71,12 @@ export function TreeBranch({
 		if (rootContext && id !== null) {
 			if (prev > 0 && items.length === 0) {
 				rootContext.dispatchEvent({
-					type: 'branch-children-changed',
+					type: "branch-children-changed",
 					payload: { branchId: id, hasChildren: false },
 				});
 			} else if (prev === 0 && items.length > 0) {
 				rootContext.dispatchEvent({
-					type: 'branch-children-changed',
+					type: "branch-children-changed",
 					payload: { branchId: id, hasChildren: true },
 				});
 			}
@@ -82,7 +85,11 @@ export function TreeBranch({
 
 	// Load children on mount (if this is root) or when needed
 	useEffect(() => {
-		if (loadChildren && !hasLoadedRef.current && itemsRef.current.length === 0) {
+		if (
+			loadChildren &&
+			!hasLoadedRef.current &&
+			itemsRef.current.length === 0
+		) {
 			if (id === null) {
 				hasLoadedRef.current = true;
 				setIsLoading(true);
@@ -96,40 +103,34 @@ export function TreeBranch({
 
 	// Toggle item open/closed state
 	const toggleItem = useCallback((itemId: string) => {
-		setItems(prevItems =>
-			prevItems.map(item =>
-				item.id === itemId
-					? { ...item, isOpen: !item.isOpen }
-					: item
-			)
+		setItems((prevItems) =>
+			prevItems.map((item) =>
+				item.id === itemId ? { ...item, isOpen: !item.isOpen } : item,
+			),
 		);
 	}, []);
 
 	// Expand an item
 	const expandItem = useCallback((itemId: string) => {
-		setItems(prevItems =>
-			prevItems.map(item =>
-				item.id === itemId && !item.isOpen
-					? { ...item, isOpen: true }
-					: item
-			)
+		setItems((prevItems) =>
+			prevItems.map((item) =>
+				item.id === itemId && !item.isOpen ? { ...item, isOpen: true } : item,
+			),
 		);
 	}, []);
 
 	// Collapse an item
 	const collapseItem = useCallback((itemId: string) => {
-		setItems(prevItems =>
-			prevItems.map(item =>
-				item.id === itemId && item.isOpen
-					? { ...item, isOpen: false }
-					: item
-			)
+		setItems((prevItems) =>
+			prevItems.map((item) =>
+				item.id === itemId && item.isOpen ? { ...item, isOpen: false } : item,
+			),
 		);
 	}, []);
 
 	// Local state operations for event-driven moves
 	const addItemLocal = useCallback((item: TreeItem, index: number) => {
-		setItems(prev => {
+		setItems((prev) => {
 			const newItems = [...prev];
 			const clampedIndex = Math.min(index, newItems.length);
 			newItems.splice(clampedIndex, 0, item);
@@ -137,17 +138,20 @@ export function TreeBranch({
 		});
 	}, []);
 
-	const removeItemLocal = useCallback((itemId: string): TreeItem | undefined => {
-		const item = itemsRef.current.find(i => i.id === itemId);
-		if (!item) return undefined;
+	const removeItemLocal = useCallback(
+		(itemId: string): TreeItem | undefined => {
+			const item = itemsRef.current.find((i) => i.id === itemId);
+			if (!item) return undefined;
 
-		setItems(prev => prev.filter(i => i.id !== itemId));
-		return item;
-	}, []);
+			setItems((prev) => prev.filter((i) => i.id !== itemId));
+			return item;
+		},
+		[],
+	);
 
 	const reorderItemLocal = useCallback((itemId: string, toIndex: number) => {
-		setItems(prev => {
-			const fromIndex = prev.findIndex(i => i.id === itemId);
+		setItems((prev) => {
+			const fromIndex = prev.findIndex((i) => i.id === itemId);
 			if (fromIndex === -1) return prev;
 
 			const newItems = [...prev];
@@ -166,7 +170,8 @@ export function TreeBranch({
 
 		const handlers: BranchHandlers = {
 			getItems: () => itemsRef.current,
-			containsItem: (itemId: string) => itemsRef.current.some(i => i.id === itemId),
+			containsItem: (itemId: string) =>
+				itemsRef.current.some((i) => i.id === itemId),
 		};
 
 		return rootContext.registerBranch(id, handlers);
@@ -181,14 +186,15 @@ export function TreeBranch({
 		for (const { item, index } of pending) {
 			addItemLocal(item, index);
 			rootContext.dispatchEvent({
-				type: 'item-added',
+				type: "item-added",
 				payload: { branchId: id, itemId: item.id },
 			});
 		}
 
 		return rootContext.addEventListener((event) => {
-			if (event.type === 'item-drop-requested') {
-				const { item, sourceBranchId, targetBranchId, targetIndex } = event.payload;
+			if (event.type === "item-drop-requested") {
+				const { item, sourceBranchId, targetBranchId, targetIndex } =
+					event.payload;
 
 				// Same branch optimization
 				if (sourceBranchId === id && targetBranchId === id) {
@@ -205,7 +211,7 @@ export function TreeBranch({
 				if (targetBranchId === id) {
 					addItemLocal(item, targetIndex);
 					rootContext.dispatchEvent({
-						type: 'item-added',
+						type: "item-added",
 						payload: { branchId: id, itemId: item.id },
 					});
 				}
@@ -213,15 +219,18 @@ export function TreeBranch({
 		});
 	}, [rootContext, id, addItemLocal, removeItemLocal, reorderItemLocal]);
 
-	const contextValue = useMemo<TreeBranchContextValue>(() => ({
-		parentId: id,
-		items,
-		isLoading,
-		setItems,
-		toggleItem,
-		expandItem,
-		collapseItem,
-	}), [id, items, isLoading, toggleItem, expandItem, collapseItem]);
+	const contextValue = useMemo<TreeBranchContextValue>(
+		() => ({
+			parentId: id,
+			items,
+			isLoading,
+			setItems,
+			toggleItem,
+			expandItem,
+			collapseItem,
+		}),
+		[id, items, isLoading, toggleItem, expandItem, collapseItem],
+	);
 
 	return (
 		<TreeBranchContext.Provider value={contextValue}>
@@ -233,7 +242,7 @@ export function TreeBranch({
 export function useTreeBranch() {
 	const context = useContext(TreeBranchContext);
 	if (!context) {
-		throw new Error('useTreeBranch must be used within a TreeBranch');
+		throw new Error("useTreeBranch must be used within a TreeBranch");
 	}
 	return context;
 }

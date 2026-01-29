@@ -1,14 +1,8 @@
-import React, {
-	useEffect,
-	useMemo,
-	useState,
-	type ReactNode,
-} from 'react';
-import memoizeOne from 'memoize-one';
-
-import { TreeContext, type TreeContextValue } from './contexts.ts';
-import { TreeRootProvider, useTreeRootContext } from './tree-root-context.tsx';
-import type { TreeItem } from '../primitives/types.ts';
+import memoizeOne from "memoize-one";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import type { TreeItem } from "../primitives/types.ts";
+import { TreeContext, type TreeContextValue } from "./contexts.ts";
+import { TreeRootProvider, useTreeRootContext } from "./tree-root-context.tsx";
 
 type CleanupFn = () => void;
 
@@ -38,7 +32,13 @@ export type TreeProviderProps = {
 	children: ReactNode;
 };
 
-function TreeProviderInner({ onItemMoved, children }: { onItemMoved?: (element: HTMLElement) => void; children: ReactNode }) {
+function TreeProviderInner({
+	onItemMoved,
+	children,
+}: {
+	onItemMoved?: (element: HTMLElement) => void;
+	children: ReactNode;
+}) {
 	const rootContext = useTreeRootContext();
 	const [{ registry, registerTreeItem }] = useState(createTreeItemRegistry);
 
@@ -47,7 +47,7 @@ function TreeProviderInner({ onItemMoved, children }: { onItemMoved?: (element: 
 		if (!onItemMoved) return;
 
 		return rootContext.addEventListener((event) => {
-			if (event.type === 'item-added') {
+			if (event.type === "item-added") {
 				setTimeout(() => {
 					const entry = registry.get(event.payload.itemId);
 					if (entry?.element) {
@@ -61,8 +61,8 @@ function TreeProviderInner({ onItemMoved, children }: { onItemMoved?: (element: 
 	const context = useMemo<TreeContextValue>(
 		() => ({
 			uniqueContextId: rootContext.uniqueContextId,
-			getPathToItem: memoizeOne(
-				(targetId: string) => rootContext.getPathToItem(targetId),
+			getPathToItem: memoizeOne((targetId: string) =>
+				rootContext.getPathToItem(targetId),
 			),
 			findItemBranch: rootContext.findItemBranch,
 			getItem: rootContext.getItem,
@@ -74,13 +74,21 @@ function TreeProviderInner({ onItemMoved, children }: { onItemMoved?: (element: 
 		[rootContext, registerTreeItem],
 	);
 
-	return <TreeContext.Provider value={context}>{children}</TreeContext.Provider>;
+	return (
+		<TreeContext.Provider value={context}>{children}</TreeContext.Provider>
+	);
 }
 
-export function TreeProvider({ initialBranchData, onItemMoved, children }: TreeProviderProps) {
+export function TreeProvider({
+	initialBranchData,
+	onItemMoved,
+	children,
+}: TreeProviderProps) {
 	return (
 		<TreeRootProvider initialBranchData={initialBranchData}>
-			<TreeProviderInner onItemMoved={onItemMoved}>{children}</TreeProviderInner>
+			<TreeProviderInner onItemMoved={onItemMoved}>
+				{children}
+			</TreeProviderInner>
 		</TreeRootProvider>
 	);
 }

@@ -1,11 +1,10 @@
-import { createContext } from 'react';
 import {
 	attachInstruction,
 	extractInstruction,
-} from '@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item';
-
-import type { TreeEventType, TreeEventListener } from './tree-root-context.tsx';
-import type { TreeItem } from '../primitives/types.ts';
+} from "@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item";
+import { createContext } from "react";
+import type { TreeItem } from "../primitives/types.ts";
+import type { TreeEventListener, TreeEventType } from "./tree-root-context.tsx";
 
 export type TreeContextValue = {
 	uniqueContextId: symbol;
@@ -23,7 +22,7 @@ export type TreeContextValue = {
 };
 
 export const TreeContext = createContext<TreeContextValue>({
-	uniqueContextId: Symbol('uniqueId'),
+	uniqueContextId: Symbol("uniqueId"),
 	getPathToItem: () => [],
 	findItemBranch: () => undefined,
 	getItem: () => undefined,
