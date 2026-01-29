@@ -1,6 +1,7 @@
 export type TreeItem = {
 	id: string;
 	isOpen?: boolean;
+	isFolder?: boolean;
 };
 
 /**
@@ -10,5 +11,6 @@ export type TreeItem = {
 export type TreeItemData = {
 	id: string;
 	isOpen?: boolean;
+	isFolder?: boolean;
 	children?: TreeItemData[];
 };

@@ -41,6 +41,7 @@ export type TreeItemContextValue = {
 	state: TreeItemState;
 	instruction: Instruction | null;
 	isOpen: boolean;
+	isFolder: boolean;
 	hasChildren: boolean;
 	toggleOpen: () => void;
 	dragHandleRef: React.RefObject<HTMLElement | null>;
@@ -67,6 +68,7 @@ export type TreeItemRenderProps = {
 	state: TreeItemState;
 	instruction: Instruction | null;
 	isOpen: boolean;
+	isFolder: boolean;
 	hasChildren: boolean;
 	toggleOpen: () => void;
 	dragHandleRef: React.RefObject<HTMLElement | null>;
@@ -244,7 +246,7 @@ function useTreeItemDragAndDrop({
 						indentPerLevel,
 						currentLevel: level,
 						mode: isOpen ? "expanded" : "standard",
-						block: [],
+						block: item.isFolder ? [] : ["make-child"],
 					});
 				},
 				canDrop: ({ source }) => {
@@ -442,6 +444,7 @@ export const TreeItem = memo(function TreeItem({
 			state,
 			instruction,
 			isOpen,
+			isFolder: item.isFolder ?? false,
 			hasChildren,
 			toggleOpen,
 			dragHandleRef,
@@ -452,6 +455,7 @@ export const TreeItem = memo(function TreeItem({
 			state,
 			instruction,
 			isOpen,
+			item.isFolder,
 			hasChildren,
 			toggleOpen,
 			dragHandleRef,
@@ -464,6 +468,7 @@ export const TreeItem = memo(function TreeItem({
 		state,
 		instruction,
 		isOpen,
+		isFolder: item.isFolder ?? false,
 		hasChildren,
 		toggleOpen,
 		dragHandleRef,

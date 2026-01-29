@@ -12,28 +12,22 @@ import "./styles.css";
 const initialData: TreeItemData[] = [
 	{
 		id: "1",
+		isFolder: true,
 		isOpen: true,
 		children: [
-			{
-				id: "1.1",
-				isOpen: true,
-				children: [{ id: "1.1.1" }, { id: "1.1.2" }],
-			},
+			{ id: "1.1" },
 			{ id: "1.2" },
 		],
 	},
 	{
 		id: "2",
+		isFolder: true,
 		isOpen: true,
-		children: [
-			{
-				id: "2.1",
-				isOpen: true,
-				children: [{ id: "2.1.1" }, { id: "2.1.2" }],
-			},
-		],
+		children: [],
 	},
 	{ id: "3" },
+	{ id: "4" },
+	{ id: "5" },
 ];
 
 const INDENT_PER_LEVEL = 20;
@@ -55,15 +49,40 @@ function ChevronIcon({ isOpen }: { isOpen: boolean }) {
 	);
 }
 
+function FolderIcon({ isOpen }: { isOpen: boolean }) {
+	if (isOpen) {
+		return (
+			<svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
+				<path d="M20 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2h10a2 2 0 0 1 2 2v1H11.5l-2 2H4v5l1.5-6h17l-2 8h-.5Z" />
+			</svg>
+		);
+	}
+	return (
+		<svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
+			<path d="M20 18H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z" />
+		</svg>
+	);
+}
+
+function FileIcon() {
+	return (
+		<svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
+			<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm4 18H6V4h7v5h5v11Z" />
+		</svg>
+	);
+}
+
 function renderTreeItem({
 	item,
 	level,
 	state,
 	instruction,
 	isOpen,
+	isFolder,
 	hasChildren,
 	toggleOpen,
 }: TreeItemRenderProps) {
+	const isClickable = isFolder && hasChildren;
 	return (
 		<div style={{ position: "relative" }}>
 			{/* Drop indicator */}
@@ -71,14 +90,14 @@ function renderTreeItem({
 
 			{/* Item row */}
 			<div
-				onClick={hasChildren ? toggleOpen : undefined}
+				onClick={isClickable ? toggleOpen : undefined}
 				style={{
 					display: "flex",
 					alignItems: "center",
 					gap: 4,
 					padding: "6px 8px",
 					paddingLeft: 8 + level * INDENT_PER_LEVEL,
-					cursor: hasChildren ? "pointer" : "default",
+					cursor: isClickable ? "pointer" : "default",
 					background: state === "dragging" ? "#f0f0f0" : "transparent",
 					opacity: state === "dragging" ? 0.5 : 1,
 					borderRadius: 4,
@@ -87,10 +106,15 @@ function renderTreeItem({
 			>
 				{/* Expand/collapse arrow */}
 				<span style={{ width: 16, display: "flex", justifyContent: "center" }}>
-					{hasChildren && <ChevronIcon isOpen={isOpen} />}
+					{isFolder && hasChildren && <ChevronIcon isOpen={isOpen} />}
 				</span>
 
-				{/* Item label - customize this however you want */}
+				{/* Icon */}
+				<span style={{ display: "flex", alignItems: "center", color: isFolder ? "#e8a838" : "#888" }}>
+					{isFolder ? <FolderIcon isOpen={isOpen && hasChildren} /> : <FileIcon />}
+				</span>
+
+				{/* Item label */}
 				<span>Item {item.id}</span>
 			</div>
 		</div>
