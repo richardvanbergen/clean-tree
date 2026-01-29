@@ -284,6 +284,7 @@ function useTreeItemDragAndDrop({
 					) as Instruction | null;
 
 					if (!dropInstruction) return;
+					if (dropInstruction.type === "instruction-blocked") return;
 
 					const sourceBranchId = findItemBranch(draggedItemId);
 					if (sourceBranchId === undefined) return;

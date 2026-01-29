@@ -15,7 +15,12 @@ const initialData: TreeItemData[] = [
 		isFolder: true,
 		isOpen: true,
 		children: [
-			{ id: "1.1" },
+			{
+				id: "1.1",
+				isFolder: true,
+				isOpen: true,
+				children: [{ id: "1.1.1" }],
+			},
 			{ id: "1.2" },
 		],
 	},
