@@ -1,2 +1,1 @@
-export { Tree, type TreeProps } from './tree.tsx';
-export { MoveDialog, type MoveDialogProps } from './move-dialog.tsx';
+export { Tree, DropIndicator, type TreeProps, type Instruction } from './tree.tsx';
