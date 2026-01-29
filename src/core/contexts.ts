@@ -3,7 +3,6 @@ import {
 	attachInstruction,
 	extractInstruction,
 } from '@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item';
-import { DropIndicator } from '@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/tree-item';
 
 import type { TreeEventType, TreeEventListener } from './tree-root-context.tsx';
 import type { TreeItem } from '../primitives/types.ts';
@@ -35,13 +34,11 @@ export const TreeContext = createContext<TreeContextValue>({
 });
 
 export type DependencyContextValue = {
-	DropIndicator: typeof DropIndicator;
 	attachInstruction: typeof attachInstruction;
 	extractInstruction: typeof extractInstruction;
 };
 
 export const DependencyContext = createContext<DependencyContextValue>({
-	DropIndicator: DropIndicator,
 	attachInstruction: attachInstruction,
 	extractInstruction: extractInstruction,
 });

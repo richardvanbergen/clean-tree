@@ -70,6 +70,7 @@ export type TreeItemProps = Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
 	level: number;
 	index: number;
 	indentPerLevel?: number;
+	renderDragPreview?: (item: TreeItemType) => ReactNode;
 	children: (props: TreeItemRenderProps) => ReactNode;
 };
 
@@ -78,6 +79,7 @@ export const TreeItem = memo(function TreeItem({
 	level,
 	index,
 	indentPerLevel = 20,
+	renderDragPreview,
 	children,
 	...props
 }: TreeItemProps) {
@@ -184,27 +186,19 @@ export const TreeItem = memo(function TreeItem({
 					isOpenOnDragStart: isOpen,
 					uniqueContextId,
 				}),
-				onGenerateDragPreview: ({ nativeSetDragImage }) => {
-					setCustomNativeDragPreview({
-						getOffset: pointerOutsideOfPreview({ x: '16px', y: '8px' }),
-						render: ({ container }) => {
-							const root = createRoot(container);
-							root.render(
-								<div style={{
-									padding: '4px 8px',
-									background: '#fff',
-									borderRadius: 3,
-									boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-									fontSize: 14,
-								}}>
-									{item.id}
-								</div>
-							);
-							return () => root.unmount();
-						},
-						nativeSetDragImage,
-					});
-				},
+				onGenerateDragPreview: renderDragPreview
+					? ({ nativeSetDragImage }) => {
+						setCustomNativeDragPreview({
+							getOffset: pointerOutsideOfPreview({ x: '16px', y: '8px' }),
+							render: ({ container }) => {
+								const root = createRoot(container);
+								root.render(renderDragPreview(item));
+								return () => root.unmount();
+							},
+							nativeSetDragImage,
+						});
+					}
+					: undefined,
 				onDragStart: () => setState('dragging'),
 				onDrop: () => setState('idle'),
 			}),
@@ -333,6 +327,7 @@ export const TreeItem = memo(function TreeItem({
 		getItem,
 		dispatchEvent,
 		branchContext,
+		renderDragPreview,
 	]);
 
 	// Cleanup on unmount

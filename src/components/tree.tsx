@@ -1,5 +1,4 @@
 import React, { useContext, useEffect, useRef, useState, useMemo, type ReactNode } from 'react';
-import { DropIndicator } from '@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/tree-item';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import type { Instruction } from '@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item';
 
@@ -39,6 +38,9 @@ function flattenTreeData(items: TreeItemData[]): Map<string | null, TreeItemType
 export type TreeProps = {
 	items: TreeItemData[];
 	renderItem: (props: TreeItemRenderProps) => ReactNode;
+	renderDragPreview?: (item: TreeItemType) => ReactNode;
+	renderDropZoneIndicator?: (isDraggedOver: boolean) => ReactNode;
+	onItemMoved?: (element: HTMLElement) => void;
 	indentPerLevel?: number;
 };
 
@@ -47,7 +49,7 @@ export type TreeProps = {
  * Allows dropping an item to append it at root level when
  * the last visible item is deeply nested.
  */
-function RootEndDropZone({ itemCount }: { itemCount: number }) {
+function RootEndDropZone({ itemCount, renderIndicator }: { itemCount: number; renderIndicator?: (isDraggedOver: boolean) => ReactNode }) {
 	const ref = useRef<HTMLDivElement>(null);
 	const [isDraggedOver, setIsDraggedOver] = useState(false);
 	const { uniqueContextId, findItemBranch, getItem, dispatchEvent } = useContext(TreeContext);
@@ -97,17 +99,7 @@ function RootEndDropZone({ itemCount }: { itemCount: number }) {
 				position: 'relative',
 			}}
 		>
-			{isDraggedOver && (
-				<div style={{
-					position: 'absolute',
-					top: 0,
-					left: 0,
-					right: 0,
-					height: 2,
-					background: 'var(--ds-border-brand, #0052CC)',
-					borderRadius: 1,
-				}} />
-			)}
+			{renderIndicator?.(isDraggedOver)}
 		</div>
 	);
 }
@@ -117,17 +109,19 @@ function RecursiveItem({
 	level,
 	index,
 	renderItem,
+	renderDragPreview,
 	indentPerLevel,
 }: {
 	item: TreeItemType;
 	level: number;
 	index: number;
 	renderItem: (props: TreeItemRenderProps) => ReactNode;
+	renderDragPreview?: (item: TreeItemType) => ReactNode;
 	indentPerLevel: number;
 }) {
 	return (
 		<>
-			<TreeItem item={item} level={level} index={index} indentPerLevel={indentPerLevel}>
+			<TreeItem item={item} level={level} index={index} indentPerLevel={indentPerLevel} renderDragPreview={renderDragPreview}>
 				{(props) => renderItem(props)}
 			</TreeItem>
 			{item.isOpen && (
@@ -140,6 +134,7 @@ function RecursiveItem({
 								level={level + 1}
 								index={i}
 								renderItem={renderItem}
+								renderDragPreview={renderDragPreview}
 								indentPerLevel={indentPerLevel}
 							/>
 						))
@@ -150,11 +145,11 @@ function RecursiveItem({
 	);
 }
 
-export function Tree({ items, renderItem, indentPerLevel = 20 }: TreeProps) {
+export function Tree({ items, renderItem, renderDragPreview, renderDropZoneIndicator, onItemMoved, indentPerLevel = 20 }: TreeProps) {
 	const initialBranchData = useMemo(() => flattenTreeData(items), [items]);
 
 	return (
-		<TreeProvider initialBranchData={initialBranchData}>
+		<TreeProvider initialBranchData={initialBranchData} onItemMoved={onItemMoved}>
 			<TreeBranch id={null}>
 				{(rootItems) =>
 					<>
@@ -165,10 +160,11 @@ export function Tree({ items, renderItem, indentPerLevel = 20 }: TreeProps) {
 								level={0}
 								index={index}
 								renderItem={renderItem}
+								renderDragPreview={renderDragPreview}
 								indentPerLevel={indentPerLevel}
 							/>
 						))}
-						<RootEndDropZone itemCount={rootItems.length} />
+						<RootEndDropZone itemCount={rootItems.length} renderIndicator={renderDropZoneIndicator} />
 					</>
 				}
 			</TreeBranch>
@@ -176,6 +172,4 @@ export function Tree({ items, renderItem, indentPerLevel = 20 }: TreeProps) {
 	);
 }
 
-// Re-export DropIndicator for use in custom renderItem
-export { DropIndicator };
 export type { Instruction };

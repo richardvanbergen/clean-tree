@@ -15,4 +15,4 @@ export {
 } from './core/index.ts';
 
 // High-level component
-export { Tree, DropIndicator, type TreeProps, type Instruction } from './components/tree.tsx';
+export { Tree, type TreeProps, type Instruction } from './components/tree.tsx';

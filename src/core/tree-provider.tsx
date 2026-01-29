@@ -5,7 +5,6 @@ import React, {
 	type ReactNode,
 } from 'react';
 import memoizeOne from 'memoize-one';
-import { triggerPostMoveFlash } from '@atlaskit/pragmatic-drag-and-drop-flourish/trigger-post-move-flash';
 
 import { TreeContext, type TreeContextValue } from './contexts.ts';
 import { TreeRootProvider, useTreeRootContext } from './tree-root-context.tsx';
@@ -35,26 +34,29 @@ function createTreeItemRegistry() {
 
 export type TreeProviderProps = {
 	initialBranchData?: Map<string | null, TreeItem[]>;
+	onItemMoved?: (element: HTMLElement) => void;
 	children: ReactNode;
 };
 
-function TreeProviderInner({ children }: { children: ReactNode }) {
+function TreeProviderInner({ onItemMoved, children }: { onItemMoved?: (element: HTMLElement) => void; children: ReactNode }) {
 	const rootContext = useTreeRootContext();
 	const [{ registry, registerTreeItem }] = useState(createTreeItemRegistry);
 
-	// Listen for item-added events to trigger post-move flash
+	// Listen for item-added events to notify via callback
 	useEffect(() => {
+		if (!onItemMoved) return;
+
 		return rootContext.addEventListener((event) => {
 			if (event.type === 'item-added') {
 				setTimeout(() => {
 					const entry = registry.get(event.payload.itemId);
 					if (entry?.element) {
-						triggerPostMoveFlash(entry.element);
+						onItemMoved(entry.element);
 					}
 				});
 			}
 		});
-	}, [rootContext, registry]);
+	}, [rootContext, registry, onItemMoved]);
 
 	const context = useMemo<TreeContextValue>(
 		() => ({
@@ -75,10 +77,10 @@ function TreeProviderInner({ children }: { children: ReactNode }) {
 	return <TreeContext.Provider value={context}>{children}</TreeContext.Provider>;
 }
 
-export function TreeProvider({ initialBranchData, children }: TreeProviderProps) {
+export function TreeProvider({ initialBranchData, onItemMoved, children }: TreeProviderProps) {
 	return (
 		<TreeRootProvider initialBranchData={initialBranchData}>
-			<TreeProviderInner>{children}</TreeProviderInner>
+			<TreeProviderInner onItemMoved={onItemMoved}>{children}</TreeProviderInner>
 		</TreeRootProvider>
 	);
 }

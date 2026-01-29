@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Tree, DropIndicator, type TreeItemData, type TreeItemRenderProps, type Instruction } from '../src/index.ts';
+import { DropIndicator } from '@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/tree-item';
+import { triggerPostMoveFlash } from '@atlaskit/pragmatic-drag-and-drop-flourish/trigger-post-move-flash';
+import { Tree, type TreeItemData, type TreeItemRenderProps, type TreeItem } from '../src/index.ts';
 import './styles.css';
 
 const initialData: TreeItemData[] = [
@@ -88,6 +90,35 @@ function renderTreeItem({ item, level, state, instruction, isOpen, hasChildren, 
 	);
 }
 
+function renderDragPreview(item: TreeItem) {
+	return (
+		<div style={{
+			padding: '4px 8px',
+			background: '#fff',
+			borderRadius: 3,
+			boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+			fontSize: 14,
+		}}>
+			{item.id}
+		</div>
+	);
+}
+
+function renderDropZoneIndicator(isDraggedOver: boolean) {
+	if (!isDraggedOver) return null;
+	return (
+		<div style={{
+			position: 'absolute',
+			top: 0,
+			left: 0,
+			right: 0,
+			height: 2,
+			background: 'var(--ds-border-brand, #0052CC)',
+			borderRadius: 1,
+		}} />
+	);
+}
+
 export default function App() {
 	const [items] = useState(initialData);
 
@@ -97,7 +128,14 @@ export default function App() {
 			<p>Drag items to reorder. Drop on items to nest. Hover over collapsed items while dragging to expand.</p>
 
 			<div style={{ maxWidth: 400, border: '1px solid #ddd', borderRadius: 8, padding: 8 }}>
-				<Tree items={items} renderItem={renderTreeItem} indentPerLevel={INDENT_PER_LEVEL} />
+				<Tree
+					items={items}
+					renderItem={renderTreeItem}
+					renderDragPreview={renderDragPreview}
+					renderDropZoneIndicator={renderDropZoneIndicator}
+					onItemMoved={triggerPostMoveFlash}
+					indentPerLevel={INDENT_PER_LEVEL}
+				/>
 			</div>
 		</div>
 	);
