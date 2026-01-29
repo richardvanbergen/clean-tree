@@ -59,6 +59,27 @@ export function TreeBranch({
 		itemsRef.current = items;
 	}, [items]);
 
+	// Notify when branch transitions between empty and non-empty
+	const prevItemCountRef = useRef(items.length);
+	useEffect(() => {
+		const prev = prevItemCountRef.current;
+		prevItemCountRef.current = items.length;
+
+		if (rootContext && id !== null) {
+			if (prev > 0 && items.length === 0) {
+				rootContext.dispatchEvent({
+					type: 'branch-children-changed',
+					payload: { branchId: id, hasChildren: false },
+				});
+			} else if (prev === 0 && items.length > 0) {
+				rootContext.dispatchEvent({
+					type: 'branch-children-changed',
+					payload: { branchId: id, hasChildren: true },
+				});
+			}
+		}
+	}, [items.length, id, rootContext]);
+
 	// Load children on mount (if this is root) or when needed
 	useEffect(() => {
 		if (loadChildren && !hasLoadedRef.current && itemsRef.current.length === 0) {

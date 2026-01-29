@@ -66,6 +66,7 @@ function TreeProviderInner({ children }: { children: ReactNode }) {
 			getItem: rootContext.getItem,
 			itemHasChildren: rootContext.itemHasChildren,
 			dispatchEvent: rootContext.dispatchEvent,
+			addEventListener: rootContext.addEventListener,
 			registerTreeItem,
 		}),
 		[rootContext, registerTreeItem],

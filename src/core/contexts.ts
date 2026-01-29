@@ -5,7 +5,7 @@ import {
 } from '@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item';
 import { DropIndicator } from '@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/tree-item';
 
-import type { TreeEventType } from './tree-root-context.tsx';
+import type { TreeEventType, TreeEventListener } from './tree-root-context.tsx';
 import type { TreeItem } from '../primitives/types.ts';
 
 export type TreeContextValue = {
@@ -15,6 +15,7 @@ export type TreeContextValue = {
 	getItem: (itemId: string) => TreeItem | undefined;
 	itemHasChildren: (itemId: string) => boolean;
 	dispatchEvent: (event: TreeEventType) => void;
+	addEventListener: (listener: TreeEventListener) => () => void;
 	registerTreeItem: (args: {
 		itemId: string;
 		element: HTMLElement;
@@ -29,6 +30,7 @@ export const TreeContext = createContext<TreeContextValue>({
 	getItem: () => undefined,
 	itemHasChildren: () => false,
 	dispatchEvent: () => {},
+	addEventListener: () => () => {},
 	registerTreeItem: () => () => {},
 });
 

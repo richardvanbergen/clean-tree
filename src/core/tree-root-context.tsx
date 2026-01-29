@@ -20,7 +20,8 @@ export type DropPayload = {
 
 export type TreeEventType =
 	| { type: 'item-drop-requested'; payload: DropPayload }
-	| { type: 'item-added'; payload: { branchId: string | null; itemId: string } };
+	| { type: 'item-added'; payload: { branchId: string | null; itemId: string } }
+	| { type: 'branch-children-changed'; payload: { branchId: string; hasChildren: boolean } };
 
 export type TreeEventListener = (event: TreeEventType) => void;
 

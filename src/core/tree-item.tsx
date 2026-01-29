@@ -88,12 +88,28 @@ export const TreeItem = memo(function TreeItem({
 	const [instruction, setInstruction] = useState<Instruction | null>(null);
 	const cancelExpandRef = useRef<(() => void) | null>(null);
 
-	const { uniqueContextId, registerTreeItem, getPathToItem, findItemBranch, getItem, itemHasChildren, dispatchEvent } = useContext(TreeContext);
+	const { uniqueContextId, registerTreeItem, getPathToItem, findItemBranch, getItem, itemHasChildren, addEventListener, dispatchEvent } = useContext(TreeContext);
 	const { attachInstruction, extractInstruction } = useContext(DependencyContext);
 	const branchContext = useContext(TreeBranchContext);
 
 	const isOpen = item.isOpen ?? false;
-	const hasChildren = itemHasChildren(item.id);
+	const [hasChildren, setHasChildren] = useState(() => itemHasChildren(item.id));
+
+	// Subscribe to branch-children-changed events for reactive hasChildren
+	useEffect(() => {
+		// Sync in case value changed between render and effect
+		setHasChildren(itemHasChildren(item.id));
+
+		return addEventListener((event) => {
+			if (event.type === 'branch-children-changed' && event.payload.branchId === item.id) {
+				setHasChildren(event.payload.hasChildren);
+				// Auto-collapse when branch becomes empty
+				if (!event.payload.hasChildren && branchContext) {
+					branchContext.collapseItem(item.id);
+				}
+			}
+		});
+	}, [item.id, itemHasChildren, addEventListener, branchContext]);
 
 	const toggleOpen = useCallback(() => {
 		if (branchContext) {
