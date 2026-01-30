@@ -29,6 +29,11 @@ export type TreeBranchProps = {
 	id: string | null; // null = root
 	initialChildren?: TreeItem[];
 	loadChildren?: (id: string | null) => Promise<TreeItem[]>;
+	onMoveItem?: (
+		itemId: string,
+		targetBranchId: string | null,
+		targetIndex: number,
+	) => Promise<TreeItem[]>;
 	children: (items: TreeItem[], isLoading: boolean) => ReactNode;
 };
 
@@ -36,6 +41,7 @@ export function TreeBranch({
 	id,
 	initialChildren,
 	loadChildren,
+	onMoveItem,
 	children,
 }: TreeBranchProps) {
 	const rootContext = useContext(TreeRootContext);
@@ -61,6 +67,34 @@ export function TreeBranch({
 	useEffect(() => {
 		itemsRef.current = items;
 	}, [items]);
+
+	// Stable ref for onMoveItem so event listeners don't re-subscribe
+	const onMoveItemRef = useRef(onMoveItem);
+	useEffect(() => {
+		onMoveItemRef.current = onMoveItem;
+	}, [onMoveItem]);
+
+	// Prevents loadChildren from overwriting move results
+	const moveInProgressRef = useRef(false);
+
+	// Fire onMoveItem in the background and reconcile with the server response.
+	// The caller is responsible for doing the optimistic local update first.
+	const reconcileMove = useCallback(
+		(itemId: string, targetIndex: number) => {
+			if (!onMoveItemRef.current) return;
+			moveInProgressRef.current = true;
+			onMoveItemRef
+				.current(itemId, id, targetIndex)
+				.then((result) => {
+					setItems(result);
+				})
+				.catch(console.error)
+				.finally(() => {
+					moveInProgressRef.current = false;
+				});
+		},
+		[id],
+	);
 
 	// Notify when branch transitions between empty and non-empty
 	const prevItemCountRef = useRef(items.length);
@@ -90,14 +124,23 @@ export function TreeBranch({
 			!hasLoadedRef.current &&
 			itemsRef.current.length === 0
 		) {
-			if (id === null) {
-				hasLoadedRef.current = true;
-				setIsLoading(true);
-				loadChildren(id)
-					.then(setItems)
-					.catch(console.error)
-					.finally(() => setIsLoading(false));
-			}
+			hasLoadedRef.current = true;
+			setIsLoading(true);
+			loadChildren(id)
+				.then((loaded) => {
+					if (moveInProgressRef.current) return;
+					setItems((prev) => {
+						// Merge: loaded children first, then any items already
+						// present (e.g. from a drop that arrived before loading finished)
+						const existingIds = new Set(prev.map((i) => i.id));
+						const newItems = loaded.filter((i) => !existingIds.has(i.id));
+						return [...newItems, ...prev];
+					});
+				})
+				.catch(console.error)
+				.finally(() => {
+					if (!moveInProgressRef.current) setIsLoading(false);
+				});
 		}
 	}, [id, loadChildren]);
 
@@ -181,14 +224,18 @@ export function TreeBranch({
 	useEffect(() => {
 		if (!rootContext) return;
 
-		// Items queued from drops that targeted this branch before it mounted
+		// Items queued from drops that targeted this branch before it mounted.
+		// Skip items already present (listener may have handled them).
 		const pending = rootContext.consumePendingItems(id);
 		for (const { item, index } of pending) {
-			addItemLocal(item, index);
-			rootContext.dispatchEvent({
-				type: "item-added",
-				payload: { branchId: id, itemId: item.id },
-			});
+			if (!itemsRef.current.some((i) => i.id === item.id)) {
+				addItemLocal(item, index);
+				rootContext.dispatchEvent({
+					type: "item-added",
+					payload: { branchId: id, itemId: item.id },
+				});
+				reconcileMove(item.id, index);
+			}
 		}
 
 		return rootContext.addEventListener((event) => {
@@ -196,28 +243,38 @@ export function TreeBranch({
 				const { item, sourceBranchId, targetBranchId, targetIndex } =
 					event.payload;
 
-				// Same branch optimization
+				// Same branch reorder
 				if (sourceBranchId === id && targetBranchId === id) {
 					reorderItemLocal(item.id, targetIndex);
+					reconcileMove(item.id, targetIndex);
 					return;
 				}
 
-				// Am I the source? Remove the item.
+				// Am I the source? Remove the item optimistically.
 				if (sourceBranchId === id) {
 					removeItemLocal(item.id);
 				}
 
-				// Am I the target? Add the item.
+				// Am I the target? Add optimistically, then reconcile with server.
 				if (targetBranchId === id) {
 					addItemLocal(item, targetIndex);
+					rootContext.consumePendingItems(id);
 					rootContext.dispatchEvent({
 						type: "item-added",
 						payload: { branchId: id, itemId: item.id },
 					});
+					reconcileMove(item.id, targetIndex);
 				}
 			}
 		});
-	}, [rootContext, id, addItemLocal, removeItemLocal, reorderItemLocal]);
+	}, [
+		rootContext,
+		id,
+		addItemLocal,
+		removeItemLocal,
+		reorderItemLocal,
+		reconcileMove,
+	]);
 
 	const contextValue = useMemo<TreeBranchContextValue>(
 		() => ({

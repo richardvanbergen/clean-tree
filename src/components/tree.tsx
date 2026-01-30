@@ -54,6 +54,13 @@ export type TreeProps = {
 	renderDropZoneIndicator?: (isDraggedOver: boolean) => ReactNode;
 	onItemMoved?: (element: HTMLElement) => void;
 	indentPerLevel?: number;
+	loadChildren?: (parentId: string | null) => Promise<TreeItemType[]>;
+	onMoveItem?: (
+		itemId: string,
+		targetBranchId: string | null,
+		targetIndex: number,
+	) => Promise<TreeItemType[]>;
+	renderLoading?: () => ReactNode;
 };
 
 /**
@@ -133,6 +140,9 @@ function RecursiveItem({
 	renderItem,
 	renderDragPreview,
 	indentPerLevel,
+	loadChildren,
+	onMoveItem,
+	renderLoading,
 }: {
 	item: TreeItemType;
 	level: number;
@@ -140,6 +150,13 @@ function RecursiveItem({
 	renderItem: (props: TreeItemRenderProps) => ReactNode;
 	renderDragPreview?: (item: TreeItemType) => ReactNode;
 	indentPerLevel: number;
+	loadChildren?: (parentId: string | null) => Promise<TreeItemType[]>;
+	onMoveItem?: (
+		itemId: string,
+		targetBranchId: string | null,
+		targetIndex: number,
+	) => Promise<TreeItemType[]>;
+	renderLoading?: () => ReactNode;
 }) {
 	return (
 		<>
@@ -153,20 +170,30 @@ function RecursiveItem({
 				{(props) => renderItem(props)}
 			</TreeItem>
 			{item.isOpen && (
-				<TreeBranch id={item.id}>
-					{(children) =>
-						children.map((child, i) => (
-							<RecursiveItem
-								key={child.id}
-								item={child}
-								level={level + 1}
-								index={i}
-								renderItem={renderItem}
-								renderDragPreview={renderDragPreview}
-								indentPerLevel={indentPerLevel}
-							/>
-						))
-					}
+				<TreeBranch
+					id={item.id}
+					loadChildren={loadChildren}
+					onMoveItem={onMoveItem}
+				>
+					{(children, isLoading) => (
+						<>
+							{isLoading && renderLoading?.()}
+							{children.map((child, i) => (
+								<RecursiveItem
+									key={child.id}
+									item={child}
+									level={level + 1}
+									index={i}
+									renderItem={renderItem}
+									renderDragPreview={renderDragPreview}
+									indentPerLevel={indentPerLevel}
+									loadChildren={loadChildren}
+									onMoveItem={onMoveItem}
+									renderLoading={renderLoading}
+								/>
+							))}
+						</>
+					)}
 				</TreeBranch>
 			)}
 		</>
@@ -180,6 +207,9 @@ export function Tree({
 	renderDropZoneIndicator,
 	onItemMoved,
 	indentPerLevel = 20,
+	loadChildren,
+	onMoveItem,
+	renderLoading,
 }: TreeProps) {
 	const initialBranchData = useMemo(() => flattenTreeData(items), [items]);
 
@@ -188,9 +218,10 @@ export function Tree({
 			initialBranchData={initialBranchData}
 			onItemMoved={onItemMoved}
 		>
-			<TreeBranch id={null}>
-				{(rootItems) => (
+			<TreeBranch id={null} loadChildren={loadChildren} onMoveItem={onMoveItem}>
+				{(rootItems, isLoading) => (
 					<>
+						{isLoading && renderLoading?.()}
 						{rootItems.map((item, index) => (
 							<RecursiveItem
 								key={item.id}
@@ -200,6 +231,9 @@ export function Tree({
 								renderItem={renderItem}
 								renderDragPreview={renderDragPreview}
 								indentPerLevel={indentPerLevel}
+								loadChildren={loadChildren}
+								onMoveItem={onMoveItem}
+								renderLoading={renderLoading}
 							/>
 						))}
 						<RootEndDropZone

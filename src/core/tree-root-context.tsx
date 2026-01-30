@@ -94,15 +94,14 @@ export function TreeRootProvider({
 			listener(event);
 		});
 
-		// If a drop targets a branch that isn't mounted yet, queue the item
-		// so the branch can pick it up when it mounts.
+		// Always queue dropped items as pending so they survive even if
+		// the target branch's event listener hasn't mounted yet.
+		// The branch deduplicates on consume.
 		if (event.type === "item-drop-requested") {
 			const { targetBranchId, item, targetIndex } = event.payload;
-			if (!branchRegistry.current.has(targetBranchId)) {
-				const pending = pendingItemsRef.current.get(targetBranchId) ?? [];
-				pending.push({ item, index: targetIndex });
-				pendingItemsRef.current.set(targetBranchId, pending);
-			}
+			const pending = pendingItemsRef.current.get(targetBranchId) ?? [];
+			pending.push({ item, index: targetIndex });
+			pendingItemsRef.current.set(targetBranchId, pending);
 		}
 	}, []);
 
