@@ -178,6 +178,7 @@ export function TreeBranch({
 				})
 				.finally(() => {
 					moveInProgressRef.current = false;
+					setIsLoading(false);
 				});
 		},
 		[rootContext, id],
@@ -209,6 +210,7 @@ export function TreeBranch({
 		if (
 			loadChildren &&
 			!hasLoadedRef.current &&
+			!moveInProgressRef.current &&
 			itemsRef.current.length === 0
 		) {
 			hasLoadedRef.current = true;
@@ -378,6 +380,7 @@ export function TreeBranch({
 					index,
 					sourceBranchId,
 				});
+				moveInProgressRef.current = true;
 				rootContext.savePreDropSnapshot(id, [...itemsRef.current]);
 				addItemLocal(item, index);
 				rootContext.dispatchEvent({
@@ -421,6 +424,7 @@ export function TreeBranch({
 
 				// Am I the target? Snapshot, add optimistically, then reconcile with server.
 				if (targetBranchId === id) {
+					moveInProgressRef.current = true;
 					rootContext.savePreDropSnapshot(id, [...itemsRef.current]);
 					addItemLocal(item, targetIndex);
 					rootContext.consumePendingItems(id);
