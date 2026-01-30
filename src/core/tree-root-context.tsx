@@ -24,6 +24,30 @@ export type TreeEventType =
 	| {
 			type: "branch-children-changed";
 			payload: { branchId: string; hasChildren: boolean };
+	  }
+	| {
+			type: "branch-reconcile";
+			payload: { branchId: string | null; items: TreeItem[] };
+	  }
+	| {
+			type: "open-state-changed";
+			payload: { itemId: string; isOpen: boolean };
+	  }
+	| {
+			type: "item-created";
+			payload: { branchId: string | null; item: TreeItem };
+	  }
+	| {
+			type: "folder-created";
+			payload: { branchId: string | null; folder: TreeItem };
+	  }
+	| {
+			type: "item-deleted";
+			payload: { branchId: string | null; itemId: string };
+	  }
+	| {
+			type: "folder-deleted";
+			payload: { branchId: string | null; folderId: string };
 	  };
 
 export type TreeEventListener = (event: TreeEventType) => void;
@@ -33,7 +57,11 @@ export type BranchHandlers = {
 	containsItem: (itemId: string) => boolean;
 };
 
-export type PendingItem = { item: TreeItem; index: number };
+export type PendingItem = {
+	item: TreeItem;
+	index: number;
+	sourceBranchId: string | null;
+};
 
 export type TreeRootContextValue = {
 	uniqueContextId: symbol;
@@ -48,23 +76,32 @@ export type TreeRootContextValue = {
 	consumePendingItems: (branchId: string | null) => PendingItem[];
 	getBranchItems: (branchId: string | null) => TreeItem[] | undefined;
 	consumeSavedBranchState: (branchId: string | null) => TreeItem[] | undefined;
+	savePreDropSnapshot: (branchId: string | null, items: TreeItem[]) => void;
+	consumePreDropSnapshot: (branchId: string | null) => TreeItem[] | undefined;
+	isItemOpen: (itemId: string) => boolean;
+	setItemOpen: (itemId: string, open: boolean) => void;
+	toggleItemOpen: (itemId: string) => void;
 };
 
 export const TreeRootContext = createContext<TreeRootContextValue | null>(null);
 
 export type TreeRootProviderProps = {
 	initialBranchData?: Map<string | null, TreeItem[]>;
+	initialOpenState?: Map<string, boolean>;
 	children: ReactNode;
 };
 
 export function TreeRootProvider({
 	initialBranchData,
+	initialOpenState,
 	children,
 }: TreeRootProviderProps) {
 	const branchRegistry = useRef(new Map<string | null, BranchHandlers>());
 	const listenersRef = useRef<Set<TreeEventListener>>(new Set());
 	const pendingItemsRef = useRef(new Map<string | null, PendingItem[]>());
 	const savedBranchStateRef = useRef(new Map<string | null, TreeItem[]>());
+	const preDropSnapshotsRef = useRef(new Map<string | null, TreeItem[]>());
+	const openStateRef = useRef(new Map<string, boolean>(initialOpenState ?? []));
 	const initialBranchDataRef = useRef(
 		initialBranchData ?? new Map<string | null, TreeItem[]>(),
 	);
@@ -98,9 +135,10 @@ export function TreeRootProvider({
 		// the target branch's event listener hasn't mounted yet.
 		// The branch deduplicates on consume.
 		if (event.type === "item-drop-requested") {
-			const { targetBranchId, item, targetIndex } = event.payload;
+			const { sourceBranchId, targetBranchId, item, targetIndex } =
+				event.payload;
 			const pending = pendingItemsRef.current.get(targetBranchId) ?? [];
-			pending.push({ item, index: targetIndex });
+			pending.push({ item, index: targetIndex, sourceBranchId });
 			pendingItemsRef.current.set(targetBranchId, pending);
 		}
 	}, []);
@@ -135,6 +173,45 @@ export function TreeRootProvider({
 			return saved;
 		},
 		[],
+	);
+
+	const savePreDropSnapshot = useCallback(
+		(branchId: string | null, items: TreeItem[]) => {
+			preDropSnapshotsRef.current.set(branchId, items);
+		},
+		[],
+	);
+
+	const consumePreDropSnapshot = useCallback(
+		(branchId: string | null): TreeItem[] | undefined => {
+			const snapshot = preDropSnapshotsRef.current.get(branchId);
+			preDropSnapshotsRef.current.delete(branchId);
+			return snapshot;
+		},
+		[],
+	);
+
+	const isItemOpen = useCallback((itemId: string): boolean => {
+		return openStateRef.current.get(itemId) ?? false;
+	}, []);
+
+	const setItemOpen = useCallback(
+		(itemId: string, open: boolean) => {
+			openStateRef.current.set(itemId, open);
+			dispatchEvent({
+				type: "open-state-changed",
+				payload: { itemId, isOpen: open },
+			});
+		},
+		[dispatchEvent],
+	);
+
+	const toggleItemOpen = useCallback(
+		(itemId: string) => {
+			const current = openStateRef.current.get(itemId) ?? false;
+			setItemOpen(itemId, !current);
+		},
+		[setItemOpen],
 	);
 
 	const findItemBranch = useCallback(
@@ -222,6 +299,11 @@ export function TreeRootProvider({
 			consumePendingItems,
 			getBranchItems,
 			consumeSavedBranchState,
+			savePreDropSnapshot,
+			consumePreDropSnapshot,
+			isItemOpen,
+			setItemOpen,
+			toggleItemOpen,
 		}),
 		[
 			uniqueContextId,
@@ -236,6 +318,11 @@ export function TreeRootProvider({
 			consumePendingItems,
 			getBranchItems,
 			consumeSavedBranchState,
+			savePreDropSnapshot,
+			consumePreDropSnapshot,
+			isItemOpen,
+			setItemOpen,
+			toggleItemOpen,
 		],
 	);
 

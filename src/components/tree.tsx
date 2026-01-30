@@ -17,6 +17,8 @@ import {
 	TreeProvider,
 } from "../core/index.ts";
 import type {
+	MoveItemArgs,
+	MoveItemResult,
 	TreeItemData,
 	TreeItem as TreeItemType,
 } from "../primitives/types.ts";
@@ -24,19 +26,25 @@ import type {
 /**
  * Flatten nested TreeItemData into a Map of branchId -> TreeItem[].
  * Each branch's items are the direct children (without nested children).
+ * Also extracts initial open state from TreeItemData.isOpen.
  */
-function flattenTreeData(
-	items: TreeItemData[],
-): Map<string | null, TreeItemType[]> {
+function flattenTreeData(items: TreeItemData[]): {
+	branchMap: Map<string | null, TreeItemType[]>;
+	initialOpenState: Map<string, boolean>;
+} {
 	const branchMap = new Map<string | null, TreeItemType[]>();
+	const initialOpenState = new Map<string, boolean>();
 
 	function traverse(items: TreeItemData[], parentId: string | null) {
 		branchMap.set(
 			parentId,
-			items.map(({ children, ...item }) => item as TreeItemType),
+			items.map(({ children, isOpen, ...item }) => item as TreeItemType),
 		);
 
 		for (const item of items) {
+			if (item.isOpen !== undefined) {
+				initialOpenState.set(item.id, item.isOpen);
+			}
 			if (item.children && item.children.length > 0) {
 				traverse(item.children, item.id);
 			}
@@ -44,7 +52,7 @@ function flattenTreeData(
 	}
 
 	traverse(items, null);
-	return branchMap;
+	return { branchMap, initialOpenState };
 }
 
 export type TreeProps = {
@@ -55,10 +63,22 @@ export type TreeProps = {
 	onItemMoved?: (element: HTMLElement) => void;
 	indentPerLevel?: number;
 	loadChildren?: (parentId: string | null) => Promise<TreeItemType[]>;
-	onMoveItem?: (
+	onMoveItem?: (args: MoveItemArgs) => Promise<MoveItemResult>;
+	onCreateItem?: (
+		parentBranchId: string | null,
+		item: TreeItemType,
+	) => Promise<TreeItemType[]>;
+	onCreateFolder?: (
+		parentBranchId: string | null,
+		folder: TreeItemType,
+	) => Promise<TreeItemType[]>;
+	onDeleteItem?: (
 		itemId: string,
-		targetBranchId: string | null,
-		targetIndex: number,
+		branchId: string | null,
+	) => Promise<TreeItemType[]>;
+	onDeleteFolder?: (
+		folderId: string,
+		branchId: string | null,
 	) => Promise<TreeItemType[]>;
 	renderLoading?: () => ReactNode;
 };
@@ -133,6 +153,24 @@ function RootEndDropZone({
 	);
 }
 
+function useIsItemOpen(itemId: string): boolean {
+	const { isItemOpen, addEventListener } = useContext(TreeContext);
+	const [open, setOpen] = useState(() => isItemOpen(itemId));
+
+	useEffect(() => {
+		return addEventListener((event) => {
+			if (
+				event.type === "open-state-changed" &&
+				event.payload.itemId === itemId
+			) {
+				setOpen(event.payload.isOpen);
+			}
+		});
+	}, [addEventListener, itemId]);
+
+	return open;
+}
+
 function RecursiveItem({
 	item,
 	level,
@@ -142,6 +180,10 @@ function RecursiveItem({
 	indentPerLevel,
 	loadChildren,
 	onMoveItem,
+	onCreateItem,
+	onCreateFolder,
+	onDeleteItem,
+	onDeleteFolder,
 	renderLoading,
 }: {
 	item: TreeItemType;
@@ -151,13 +193,27 @@ function RecursiveItem({
 	renderDragPreview?: (item: TreeItemType) => ReactNode;
 	indentPerLevel: number;
 	loadChildren?: (parentId: string | null) => Promise<TreeItemType[]>;
-	onMoveItem?: (
+	onMoveItem?: (args: MoveItemArgs) => Promise<MoveItemResult>;
+	onCreateItem?: (
+		parentBranchId: string | null,
+		item: TreeItemType,
+	) => Promise<TreeItemType[]>;
+	onCreateFolder?: (
+		parentBranchId: string | null,
+		folder: TreeItemType,
+	) => Promise<TreeItemType[]>;
+	onDeleteItem?: (
 		itemId: string,
-		targetBranchId: string | null,
-		targetIndex: number,
+		branchId: string | null,
+	) => Promise<TreeItemType[]>;
+	onDeleteFolder?: (
+		folderId: string,
+		branchId: string | null,
 	) => Promise<TreeItemType[]>;
 	renderLoading?: () => ReactNode;
 }) {
+	const isOpen = useIsItemOpen(item.id);
+
 	return (
 		<>
 			<TreeItem
@@ -169,11 +225,15 @@ function RecursiveItem({
 			>
 				{(props) => renderItem(props)}
 			</TreeItem>
-			{item.isOpen && (
+			{isOpen && (
 				<TreeBranch
 					id={item.id}
 					loadChildren={loadChildren}
 					onMoveItem={onMoveItem}
+					onCreateItem={onCreateItem}
+					onCreateFolder={onCreateFolder}
+					onDeleteItem={onDeleteItem}
+					onDeleteFolder={onDeleteFolder}
 				>
 					{(children, isLoading) => (
 						<>
@@ -188,6 +248,10 @@ function RecursiveItem({
 									indentPerLevel={indentPerLevel}
 									loadChildren={loadChildren}
 									onMoveItem={onMoveItem}
+									onCreateItem={onCreateItem}
+									onCreateFolder={onCreateFolder}
+									onDeleteItem={onDeleteItem}
+									onDeleteFolder={onDeleteFolder}
 									renderLoading={renderLoading}
 								/>
 							))}
@@ -209,16 +273,32 @@ export function Tree({
 	indentPerLevel = 20,
 	loadChildren,
 	onMoveItem,
+	onCreateItem,
+	onCreateFolder,
+	onDeleteItem,
+	onDeleteFolder,
 	renderLoading,
 }: TreeProps) {
-	const initialBranchData = useMemo(() => flattenTreeData(items), [items]);
+	const { branchMap, initialOpenState } = useMemo(
+		() => flattenTreeData(items),
+		[items],
+	);
 
 	return (
 		<TreeProvider
-			initialBranchData={initialBranchData}
+			initialBranchData={branchMap}
+			initialOpenState={initialOpenState}
 			onItemMoved={onItemMoved}
 		>
-			<TreeBranch id={null} loadChildren={loadChildren} onMoveItem={onMoveItem}>
+			<TreeBranch
+				id={null}
+				loadChildren={loadChildren}
+				onMoveItem={onMoveItem}
+				onCreateItem={onCreateItem}
+				onCreateFolder={onCreateFolder}
+				onDeleteItem={onDeleteItem}
+				onDeleteFolder={onDeleteFolder}
+			>
 				{(rootItems, isLoading) => (
 					<>
 						{rootItems.map((item, index) => (
@@ -232,6 +312,10 @@ export function Tree({
 								indentPerLevel={indentPerLevel}
 								loadChildren={loadChildren}
 								onMoveItem={onMoveItem}
+								onCreateItem={onCreateItem}
+								onCreateFolder={onCreateFolder}
+								onDeleteItem={onDeleteItem}
+								onDeleteFolder={onDeleteFolder}
 								renderLoading={renderLoading}
 							/>
 						))}

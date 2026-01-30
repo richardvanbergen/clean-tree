@@ -22,6 +22,7 @@ export {
 export { TreeProvider, type TreeProviderProps } from "./tree-provider.tsx";
 export {
 	type BranchHandlers,
+	type TreeEventType,
 	TreeRootContext,
 	type TreeRootContextValue,
 	TreeRootProvider,

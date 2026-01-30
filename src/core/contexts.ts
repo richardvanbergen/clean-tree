@@ -19,6 +19,9 @@ export type TreeContextValue = {
 		element: HTMLElement;
 		actionMenuTrigger: HTMLElement;
 	}) => () => void;
+	isItemOpen: (itemId: string) => boolean;
+	setItemOpen: (itemId: string, open: boolean) => void;
+	toggleItemOpen: (itemId: string) => void;
 };
 
 export const TreeContext = createContext<TreeContextValue>({
@@ -30,6 +33,9 @@ export const TreeContext = createContext<TreeContextValue>({
 	dispatchEvent: () => {},
 	addEventListener: () => () => {},
 	registerTreeItem: () => () => {},
+	isItemOpen: () => false,
+	setItemOpen: () => {},
+	toggleItemOpen: () => {},
 });
 
 export type DependencyContextValue = {

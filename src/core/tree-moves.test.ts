@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { Instruction } from "@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item";
 import type { TreeItem } from "../primitives/types.ts";
 import type {
 	BranchHandlers,
@@ -30,10 +31,11 @@ function createEventEmitter(
 
 			// Queue items for unmounted target branches (mirrors tree-root-context.tsx)
 			if (event.type === "item-drop-requested" && branchRegistry) {
-				const { targetBranchId, item, targetIndex } = event.payload;
+				const { sourceBranchId, targetBranchId, item, targetIndex } =
+					event.payload;
 				if (!branchRegistry.has(targetBranchId)) {
 					const pending = pendingItems.get(targetBranchId) ?? [];
-					pending.push({ item, index: targetIndex });
+					pending.push({ item, index: targetIndex, sourceBranchId });
 					pendingItems.set(targetBranchId, pending);
 				}
 			}
@@ -308,11 +310,11 @@ describe("Branch registry", () => {
 		const registry = createBranchRegistry();
 
 		registry.register(null, {
-			getItems: () => [{ id: "X", isOpen: true }, { id: "Y" }],
+			getItems: () => [{ id: "X", isFolder: true }, { id: "Y" }],
 			containsItem: (id) => id === "X" || id === "Y",
 		});
 
-		expect(registry.getItem("X")).toEqual({ id: "X", isOpen: true });
+		expect(registry.getItem("X")).toEqual({ id: "X", isFolder: true });
 		expect(registry.getItem("Y")).toEqual({ id: "Y" });
 		expect(registry.getItem("Z")).toBeUndefined();
 	});
@@ -374,7 +376,11 @@ describe("Same-branch reorder", () => {
 				sourceBranchId: null,
 				targetBranchId: null,
 				targetIndex: 3,
-				instruction: { type: "reorder-below" } as any,
+				instruction: {
+					type: "reorder-below",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -395,7 +401,11 @@ describe("Same-branch reorder", () => {
 				sourceBranchId: null,
 				targetBranchId: null,
 				targetIndex: 0,
-				instruction: { type: "reorder-above" } as any,
+				instruction: {
+					type: "reorder-above",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -417,7 +427,11 @@ describe("Same-branch reorder", () => {
 				sourceBranchId: null,
 				targetBranchId: null,
 				targetIndex: 1,
-				instruction: { type: "reorder-above" } as any,
+				instruction: {
+					type: "reorder-above",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -431,7 +445,7 @@ describe("Cross-branch move", () => {
 		const tree = createTestTree([
 			{
 				id: null,
-				items: [{ id: "A", isOpen: true }, { id: "B" }, { id: "C" }],
+				items: [{ id: "A", isFolder: true }, { id: "B" }, { id: "C" }],
 			},
 			{ id: "A", items: [{ id: "A1" }] },
 		]);
@@ -444,7 +458,11 @@ describe("Cross-branch move", () => {
 				sourceBranchId: null,
 				targetBranchId: "A",
 				targetIndex: 0,
-				instruction: { type: "make-child" } as any,
+				instruction: {
+					type: "make-child",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -455,7 +473,7 @@ describe("Cross-branch move", () => {
 
 	test("child → root branch", () => {
 		const tree = createTestTree([
-			{ id: null, items: [{ id: "A", isOpen: true }, { id: "B" }] },
+			{ id: null, items: [{ id: "A", isFolder: true }, { id: "B" }] },
 			{ id: "A", items: [{ id: "A1" }, { id: "A2" }] },
 		]);
 
@@ -467,7 +485,11 @@ describe("Cross-branch move", () => {
 				sourceBranchId: "A",
 				targetBranchId: null,
 				targetIndex: 2,
-				instruction: { type: "reorder-below" } as any,
+				instruction: {
+					type: "reorder-below",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -481,8 +503,8 @@ describe("Cross-branch move", () => {
 			{
 				id: null,
 				items: [
-					{ id: "A", isOpen: true },
-					{ id: "B", isOpen: true },
+					{ id: "A", isFolder: true },
+					{ id: "B", isFolder: true },
 				],
 			},
 			{ id: "A", items: [{ id: "A1" }, { id: "A2" }] },
@@ -497,7 +519,11 @@ describe("Cross-branch move", () => {
 				sourceBranchId: "A",
 				targetBranchId: "B",
 				targetIndex: 1,
-				instruction: { type: "reorder-below" } as any,
+				instruction: {
+					type: "reorder-below",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -525,7 +551,11 @@ describe("Cross-branch move", () => {
 				sourceBranchId: null,
 				targetBranchId: "A",
 				targetIndex: 0,
-				instruction: { type: "make-child" } as any,
+				instruction: {
+					type: "make-child",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -560,7 +590,11 @@ describe("Listener ordering (race condition regression)", () => {
 				sourceBranchId: "A",
 				targetBranchId: "B",
 				targetIndex: 0,
-				instruction: { type: "reorder-above" } as any,
+				instruction: {
+					type: "reorder-above",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -590,7 +624,11 @@ describe("Listener ordering (race condition regression)", () => {
 				sourceBranchId: "A",
 				targetBranchId: "B",
 				targetIndex: 0,
-				instruction: { type: "reorder-above" } as any,
+				instruction: {
+					type: "reorder-above",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -617,7 +655,11 @@ describe("Edge cases", () => {
 				sourceBranchId: null,
 				targetBranchId: "A",
 				targetIndex: 999,
-				instruction: { type: "reorder-below" } as any,
+				instruction: {
+					type: "reorder-below",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -641,7 +683,11 @@ describe("Edge cases", () => {
 				sourceBranchId: "X",
 				targetBranchId: null,
 				targetIndex: 0,
-				instruction: { type: "reorder-above" } as any,
+				instruction: {
+					type: "reorder-above",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -673,7 +719,11 @@ describe("Edge cases", () => {
 				sourceBranchId: null,
 				targetBranchId: "A",
 				targetIndex: 0,
-				instruction: { type: "make-child" } as any,
+				instruction: {
+					type: "make-child",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -699,7 +749,7 @@ describe("Edge cases", () => {
 
 		const root = createTestBranch(
 			null,
-			[{ id: "A", isOpen: true }, { id: "B" }, { id: "C" }],
+			[{ id: "A", isFolder: true }, { id: "B" }, { id: "C" }],
 			emitter,
 			registry,
 		);
@@ -714,7 +764,11 @@ describe("Edge cases", () => {
 				sourceBranchId: null,
 				targetBranchId: "A",
 				targetIndex: 0,
-				instruction: { type: "make-child" } as any,
+				instruction: {
+					type: "make-child",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 
@@ -729,11 +783,15 @@ describe("Edge cases", () => {
 			type: "item-drop-requested",
 			payload: {
 				itemId: "A",
-				item: { id: "A", isOpen: true },
+				item: { id: "A", isFolder: true },
 				sourceBranchId: null,
 				targetBranchId: "C",
 				targetIndex: 0,
-				instruction: { type: "make-child" } as any,
+				instruction: {
+					type: "make-child",
+					currentLevel: 0,
+					indentPerLevel: 20,
+				} satisfies Instruction,
 			},
 		});
 

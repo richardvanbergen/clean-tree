@@ -28,10 +28,6 @@ import {
 	TreeContext,
 	type TreeContextValue,
 } from "./contexts.ts";
-import {
-	TreeBranchContext,
-	type TreeBranchContextValue,
-} from "./tree-branch.tsx";
 
 export type TreeItemState = "idle" | "dragging";
 
@@ -87,7 +83,7 @@ function useChildrenTracking(
 	itemId: string,
 	itemHasChildren: (id: string) => boolean,
 	addEventListener: TreeContextValue["addEventListener"],
-	branchContext: TreeBranchContextValue | null,
+	setItemOpen: (itemId: string, open: boolean) => void,
 ) {
 	const [hasChildren, setHasChildren] = useState(() => itemHasChildren(itemId));
 
@@ -100,12 +96,12 @@ function useChildrenTracking(
 				event.payload.branchId === itemId
 			) {
 				setHasChildren(event.payload.hasChildren);
-				if (!event.payload.hasChildren && branchContext) {
-					branchContext.collapseItem(itemId);
+				if (!event.payload.hasChildren) {
+					setItemOpen(itemId, false);
 				}
 			}
 		});
-	}, [itemId, itemHasChildren, addEventListener, branchContext]);
+	}, [itemId, itemHasChildren, addEventListener, setItemOpen]);
 
 	return hasChildren;
 }
@@ -146,7 +142,7 @@ function useTreeItemDragAndDrop({
 	findItemBranch,
 	getItem,
 	dispatchEvent,
-	branchContext,
+	setItemOpen,
 	renderDragPreview,
 }: {
 	item: TreeItemType;
@@ -164,7 +160,7 @@ function useTreeItemDragAndDrop({
 	findItemBranch: TreeContextValue["findItemBranch"];
 	getItem: TreeContextValue["getItem"];
 	dispatchEvent: TreeContextValue["dispatchEvent"];
-	branchContext: TreeBranchContextValue | null;
+	setItemOpen: (itemId: string, open: boolean) => void;
 	renderDragPreview?: (item: TreeItemType) => ReactNode;
 }) {
 	const dragHandleRef = useRef<HTMLElement>(null);
@@ -309,9 +305,7 @@ function useTreeItemDragAndDrop({
 						case "make-child":
 							targetBranchId = targetId;
 							finalIndex = 0;
-							if (branchContext) {
-								branchContext.expandItem(targetId);
-							}
+							setItemOpen(targetId, true);
 							break;
 
 						case "reparent": {
@@ -358,7 +352,7 @@ function useTreeItemDragAndDrop({
 		findItemBranch,
 		getItem,
 		dispatchEvent,
-		branchContext,
+		setItemOpen,
 		renderDragPreview,
 		rowRef,
 	]);
@@ -394,29 +388,42 @@ export const TreeItem = memo(function TreeItem({
 	} = useContext(TreeContext);
 	const { attachInstruction, extractInstruction } =
 		useContext(DependencyContext);
-	const branchContext = useContext(TreeBranchContext);
+	const {
+		isItemOpen: isItemOpenFn,
+		setItemOpen,
+		toggleItemOpen,
+	} = useContext(TreeContext);
 
-	const isOpen = item.isOpen ?? false;
+	const [isOpen, setIsOpen] = useState(() => isItemOpenFn(item.id));
+
+	// Subscribe to open-state-changed events for this item
+	useEffect(() => {
+		return addEventListener((event) => {
+			if (
+				event.type === "open-state-changed" &&
+				event.payload.itemId === item.id
+			) {
+				setIsOpen(event.payload.isOpen);
+			}
+		});
+	}, [addEventListener, item.id]);
+
 	const hasChildren = useChildrenTracking(
 		item.id,
 		itemHasChildren,
 		addEventListener,
-		branchContext,
+		setItemOpen,
 	);
 
 	useTreeItemRegistration(item.id, rowRef, registerTreeItem);
 
 	const toggleOpen = useCallback(() => {
-		if (branchContext) {
-			branchContext.toggleItem(item.id);
-		}
-	}, [branchContext, item.id]);
+		toggleItemOpen(item.id);
+	}, [toggleItemOpen, item.id]);
 
 	const expandItem = useCallback(() => {
-		if (branchContext) {
-			branchContext.expandItem(item.id);
-		}
-	}, [branchContext, item.id]);
+		setItemOpen(item.id, true);
+	}, [setItemOpen, item.id]);
 
 	const { state, instruction, dragHandleRef } = useTreeItemDragAndDrop({
 		item,
@@ -434,7 +441,7 @@ export const TreeItem = memo(function TreeItem({
 		findItemBranch,
 		getItem,
 		dispatchEvent,
-		branchContext,
+		setItemOpen,
 		renderDragPreview,
 	});
 

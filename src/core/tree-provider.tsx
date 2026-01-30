@@ -28,6 +28,7 @@ function createTreeItemRegistry() {
 
 export type TreeProviderProps = {
 	initialBranchData?: Map<string | null, TreeItem[]>;
+	initialOpenState?: Map<string, boolean>;
 	onItemMoved?: (element: HTMLElement) => void;
 	children: ReactNode;
 };
@@ -70,6 +71,9 @@ function TreeProviderInner({
 			dispatchEvent: rootContext.dispatchEvent,
 			addEventListener: rootContext.addEventListener,
 			registerTreeItem,
+			isItemOpen: rootContext.isItemOpen,
+			setItemOpen: rootContext.setItemOpen,
+			toggleItemOpen: rootContext.toggleItemOpen,
 		}),
 		[rootContext, registerTreeItem],
 	);
@@ -81,11 +85,15 @@ function TreeProviderInner({
 
 export function TreeProvider({
 	initialBranchData,
+	initialOpenState,
 	onItemMoved,
 	children,
 }: TreeProviderProps) {
 	return (
-		<TreeRootProvider initialBranchData={initialBranchData}>
+		<TreeRootProvider
+			initialBranchData={initialBranchData}
+			initialOpenState={initialOpenState}
+		>
 			<TreeProviderInner onItemMoved={onItemMoved}>
 				{children}
 			</TreeProviderInner>

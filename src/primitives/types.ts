@@ -1,6 +1,5 @@
 export type TreeItem = {
 	id: string;
-	isOpen?: boolean;
 	isFolder?: boolean;
 };
 
@@ -13,4 +12,16 @@ export type TreeItemData = {
 	isOpen?: boolean;
 	isFolder?: boolean;
 	children?: TreeItemData[];
+};
+
+export type MoveItemArgs = {
+	itemId: string;
+	sourceBranchId: string | null;
+	targetBranchId: string | null;
+	targetIndex: number;
+};
+
+export type MoveItemResult = {
+	sourceBranchItems: TreeItem[];
+	targetBranchItems: TreeItem[];
 };

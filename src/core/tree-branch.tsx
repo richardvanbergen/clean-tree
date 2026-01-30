@@ -8,7 +8,11 @@ import React, {
 	useRef,
 	useState,
 } from "react";
-import type { TreeItem } from "../primitives/types.ts";
+import type {
+	MoveItemArgs,
+	MoveItemResult,
+	TreeItem,
+} from "../primitives/types.ts";
 import { type BranchHandlers, TreeRootContext } from "./tree-root-context.tsx";
 
 export type TreeBranchContextValue = {
@@ -16,9 +20,10 @@ export type TreeBranchContextValue = {
 	items: TreeItem[];
 	isLoading: boolean;
 	setItems: React.Dispatch<React.SetStateAction<TreeItem[]>>;
-	toggleItem: (itemId: string) => void;
-	expandItem: (itemId: string) => void;
-	collapseItem: (itemId: string) => void;
+	createItem: (item: TreeItem) => void;
+	createFolder: (folder: TreeItem) => void;
+	deleteItem: (itemId: string) => void;
+	deleteFolder: (folderId: string) => void;
 };
 
 export const TreeBranchContext = createContext<TreeBranchContextValue | null>(
@@ -29,10 +34,22 @@ export type TreeBranchProps = {
 	id: string | null; // null = root
 	initialChildren?: TreeItem[];
 	loadChildren?: (id: string | null) => Promise<TreeItem[]>;
-	onMoveItem?: (
+	onMoveItem?: (args: MoveItemArgs) => Promise<MoveItemResult>;
+	onCreateItem?: (
+		parentBranchId: string | null,
+		item: TreeItem,
+	) => Promise<TreeItem[]>;
+	onCreateFolder?: (
+		parentBranchId: string | null,
+		folder: TreeItem,
+	) => Promise<TreeItem[]>;
+	onDeleteItem?: (
 		itemId: string,
-		targetBranchId: string | null,
-		targetIndex: number,
+		branchId: string | null,
+	) => Promise<TreeItem[]>;
+	onDeleteFolder?: (
+		folderId: string,
+		branchId: string | null,
 	) => Promise<TreeItem[]>;
 	children: (items: TreeItem[], isLoading: boolean) => ReactNode;
 };
@@ -42,6 +59,10 @@ export function TreeBranch({
 	initialChildren,
 	loadChildren,
 	onMoveItem,
+	onCreateItem,
+	onCreateFolder,
+	onDeleteItem,
+	onDeleteFolder,
 	children,
 }: TreeBranchProps) {
 	const rootContext = useContext(TreeRootContext);
@@ -68,32 +89,98 @@ export function TreeBranch({
 		itemsRef.current = items;
 	}, [items]);
 
-	// Stable ref for onMoveItem so event listeners don't re-subscribe
+	// Stable refs for callbacks so event listeners don't re-subscribe
 	const onMoveItemRef = useRef(onMoveItem);
 	useEffect(() => {
 		onMoveItemRef.current = onMoveItem;
 	}, [onMoveItem]);
 
+	const onCreateItemRef = useRef(onCreateItem);
+	useEffect(() => {
+		onCreateItemRef.current = onCreateItem;
+	}, [onCreateItem]);
+
+	const onCreateFolderRef = useRef(onCreateFolder);
+	useEffect(() => {
+		onCreateFolderRef.current = onCreateFolder;
+	}, [onCreateFolder]);
+
+	const onDeleteItemRef = useRef(onDeleteItem);
+	useEffect(() => {
+		onDeleteItemRef.current = onDeleteItem;
+	}, [onDeleteItem]);
+
+	const onDeleteFolderRef = useRef(onDeleteFolder);
+	useEffect(() => {
+		onDeleteFolderRef.current = onDeleteFolder;
+	}, [onDeleteFolder]);
+
 	// Prevents loadChildren from overwriting move results
 	const moveInProgressRef = useRef(false);
 
 	// Fire onMoveItem in the background and reconcile with the server response.
-	// The caller is responsible for doing the optimistic local update first.
+	// Called by the TARGET branch after optimistic updates are applied.
+	// On success: sets target items from result, dispatches branch-reconcile to source.
+	// On failure: rolls back both branches from pre-drop snapshots.
 	const reconcileMove = useCallback(
-		(itemId: string, targetIndex: number) => {
-			if (!onMoveItemRef.current) return;
+		(args: MoveItemArgs) => {
+			if (!onMoveItemRef.current || !rootContext) return;
 			moveInProgressRef.current = true;
+			console.log("[reconcileMove] start", { branchId: id, args });
 			onMoveItemRef
-				.current(itemId, id, targetIndex)
+				.current(args)
 				.then((result) => {
-					setItems(result);
+					console.log("[reconcileMove] success", {
+						branchId: id,
+						sourceItems: result.sourceBranchItems.map((i) => i.id),
+						targetItems: result.targetBranchItems.map((i) => i.id),
+					});
+					// Reconcile target branch (this branch) with server
+					setItems(result.targetBranchItems);
+					// Reconcile source branch via event (if cross-branch)
+					if (args.sourceBranchId !== args.targetBranchId) {
+						rootContext.dispatchEvent({
+							type: "branch-reconcile",
+							payload: {
+								branchId: args.sourceBranchId,
+								items: result.sourceBranchItems,
+							},
+						});
+					}
+					// Consume snapshots (no longer needed)
+					rootContext.consumePreDropSnapshot(args.targetBranchId);
+					if (args.sourceBranchId !== args.targetBranchId) {
+						rootContext.consumePreDropSnapshot(args.sourceBranchId);
+					}
 				})
-				.catch(console.error)
+				.catch((err) => {
+					console.error(err);
+					// Roll back target branch from snapshot
+					const targetSnapshot = rootContext.consumePreDropSnapshot(
+						args.targetBranchId,
+					);
+					if (targetSnapshot) setItems(targetSnapshot);
+					// Roll back source branch via event (if cross-branch)
+					if (args.sourceBranchId !== args.targetBranchId) {
+						const sourceSnapshot = rootContext.consumePreDropSnapshot(
+							args.sourceBranchId,
+						);
+						if (sourceSnapshot) {
+							rootContext.dispatchEvent({
+								type: "branch-reconcile",
+								payload: {
+									branchId: args.sourceBranchId,
+									items: sourceSnapshot,
+								},
+							});
+						}
+					}
+				})
 				.finally(() => {
 					moveInProgressRef.current = false;
 				});
 		},
-		[id],
+		[rootContext, id],
 	);
 
 	// Notify when branch transitions between empty and non-empty
@@ -128,6 +215,11 @@ export function TreeBranch({
 			setIsLoading(true);
 			loadChildren(id)
 				.then((loaded) => {
+					console.log("[loadChildren resolved]", {
+						branchId: id,
+						moveInProgress: moveInProgressRef.current,
+						loaded: loaded.map((i) => i.id),
+					});
 					if (moveInProgressRef.current) return;
 					setItems((prev) => {
 						// Merge: loaded children first, then any items already
@@ -143,33 +235,6 @@ export function TreeBranch({
 				});
 		}
 	}, [id, loadChildren]);
-
-	// Toggle item open/closed state
-	const toggleItem = useCallback((itemId: string) => {
-		setItems((prevItems) =>
-			prevItems.map((item) =>
-				item.id === itemId ? { ...item, isOpen: !item.isOpen } : item,
-			),
-		);
-	}, []);
-
-	// Expand an item
-	const expandItem = useCallback((itemId: string) => {
-		setItems((prevItems) =>
-			prevItems.map((item) =>
-				item.id === itemId && !item.isOpen ? { ...item, isOpen: true } : item,
-			),
-		);
-	}, []);
-
-	// Collapse an item
-	const collapseItem = useCallback((itemId: string) => {
-		setItems((prevItems) =>
-			prevItems.map((item) =>
-				item.id === itemId && item.isOpen ? { ...item, isOpen: false } : item,
-			),
-		);
-	}, []);
 
 	// Local state operations for event-driven moves
 	const addItemLocal = useCallback((item: TreeItem, index: number) => {
@@ -207,6 +272,79 @@ export function TreeBranch({
 		});
 	}, []);
 
+	// Create/delete operations with optimistic updates and rollback
+	const createItem = useCallback(
+		(item: TreeItem) => {
+			const snapshot = [...itemsRef.current];
+			setItems((prev) => [...prev, item]);
+			rootContext?.dispatchEvent({
+				type: "item-created",
+				payload: { branchId: id, item },
+			});
+			if (onCreateItemRef.current) {
+				onCreateItemRef.current(id, item).then(
+					(result) => setItems(result),
+					() => setItems(snapshot),
+				);
+			}
+		},
+		[id, rootContext],
+	);
+
+	const createFolder = useCallback(
+		(folder: TreeItem) => {
+			const snapshot = [...itemsRef.current];
+			setItems((prev) => [...prev, folder]);
+			rootContext?.dispatchEvent({
+				type: "folder-created",
+				payload: { branchId: id, folder },
+			});
+			if (onCreateFolderRef.current) {
+				onCreateFolderRef.current(id, folder).then(
+					(result) => setItems(result),
+					() => setItems(snapshot),
+				);
+			}
+		},
+		[id, rootContext],
+	);
+
+	const deleteItem = useCallback(
+		(itemId: string) => {
+			const snapshot = [...itemsRef.current];
+			setItems((prev) => prev.filter((i) => i.id !== itemId));
+			rootContext?.dispatchEvent({
+				type: "item-deleted",
+				payload: { branchId: id, itemId },
+			});
+			if (onDeleteItemRef.current) {
+				onDeleteItemRef.current(itemId, id).then(
+					(result) => setItems(result),
+					() => setItems(snapshot),
+				);
+			}
+		},
+		[id, rootContext],
+	);
+
+	const deleteFolder = useCallback(
+		(folderId: string) => {
+			const snapshot = [...itemsRef.current];
+			setItems((prev) => prev.filter((i) => i.id !== folderId));
+			rootContext?.dispatchEvent({
+				type: "folder-deleted",
+				payload: { branchId: id, folderId },
+			});
+			if (onDeleteFolderRef.current) {
+				onDeleteFolderRef.current(folderId, id).then(
+					(result) => setItems(result),
+					() => setItems(snapshot),
+				);
+			}
+		},
+		[id, rootContext],
+	);
+
 	// Register with root context (read-only handlers)
 	useEffect(() => {
 		if (!rootContext) return;
@@ -227,44 +365,80 @@ export function TreeBranch({
 		// Items queued from drops that targeted this branch before it mounted.
 		// Skip items already present (listener may have handled them).
 		const pending = rootContext.consumePendingItems(id);
-		for (const { item, index } of pending) {
+		console.log("[branch mount]", {
+			branchId: id,
+			pendingCount: pending.length,
+			currentItems: itemsRef.current.map((i) => i.id),
+		});
+		for (const { item, index, sourceBranchId } of pending) {
 			if (!itemsRef.current.some((i) => i.id === item.id)) {
+				console.log("[pending consume]", {
+					branchId: id,
+					item: item.id,
+					index,
+					sourceBranchId,
+				});
+				rootContext.savePreDropSnapshot(id, [...itemsRef.current]);
 				addItemLocal(item, index);
 				rootContext.dispatchEvent({
 					type: "item-added",
 					payload: { branchId: id, itemId: item.id },
 				});
-				reconcileMove(item.id, index);
+				reconcileMove({
+					itemId: item.id,
+					sourceBranchId,
+					targetBranchId: id,
+					targetIndex: index,
+				});
 			}
 		}
 
 		return rootContext.addEventListener((event) => {
 			if (event.type === "item-drop-requested") {
-				const { item, sourceBranchId, targetBranchId, targetIndex } =
+				const { itemId, item, sourceBranchId, targetBranchId, targetIndex } =
 					event.payload;
+
+				const moveArgs: MoveItemArgs = {
+					itemId,
+					sourceBranchId,
+					targetBranchId,
+					targetIndex,
+				};
 
 				// Same branch reorder
 				if (sourceBranchId === id && targetBranchId === id) {
+					rootContext.savePreDropSnapshot(id, [...itemsRef.current]);
 					reorderItemLocal(item.id, targetIndex);
-					reconcileMove(item.id, targetIndex);
+					reconcileMove(moveArgs);
 					return;
 				}
 
-				// Am I the source? Remove the item optimistically.
+				// Am I the source? Snapshot then remove the item optimistically.
 				if (sourceBranchId === id) {
+					rootContext.savePreDropSnapshot(id, [...itemsRef.current]);
 					removeItemLocal(item.id);
 				}
 
-				// Am I the target? Add optimistically, then reconcile with server.
+				// Am I the target? Snapshot, add optimistically, then reconcile with server.
 				if (targetBranchId === id) {
+					rootContext.savePreDropSnapshot(id, [...itemsRef.current]);
 					addItemLocal(item, targetIndex);
 					rootContext.consumePendingItems(id);
 					rootContext.dispatchEvent({
 						type: "item-added",
 						payload: { branchId: id, itemId: item.id },
 					});
-					reconcileMove(item.id, targetIndex);
+					reconcileMove(moveArgs);
 				}
+			}
+
+			// Handle branch reconciliation (dispatched by target after server response)
+			if (event.type === "branch-reconcile" && event.payload.branchId === id) {
+				console.log("[branch-reconcile]", {
+					branchId: id,
+					items: event.payload.items.map((i) => i.id),
+				});
+				setItems(event.payload.items);
 			}
 		});
 	}, [
@@ -282,11 +456,12 @@ export function TreeBranch({
 			items,
 			isLoading,
 			setItems,
-			toggleItem,
-			expandItem,
-			collapseItem,
+			createItem,
+			createFolder,
+			deleteItem,
+			deleteFolder,
 		}),
-		[id, items, isLoading, toggleItem, expandItem, collapseItem],
+		[id, items, isLoading, createItem, createFolder, deleteItem, deleteFolder],
 	);
 
 	return (

@@ -15,4 +15,9 @@ export {
 	type TreeProviderProps,
 	useTreeBranch,
 } from "./core/index.ts";
-export type { TreeItem, TreeItemData } from "./primitives/types.ts";
+export type {
+	MoveItemArgs,
+	MoveItemResult,
+	TreeItem,
+	TreeItemData,
+} from "./primitives/types.ts";

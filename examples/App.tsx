@@ -2,6 +2,8 @@ import { triggerPostMoveFlash } from "@atlaskit/pragmatic-drag-and-drop-flourish
 import { DropIndicator } from "@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/tree-item";
 import { useState } from "react";
 import {
+	type MoveItemArgs,
+	type MoveItemResult,
 	Tree,
 	type TreeItem,
 	type TreeItemData,
@@ -226,43 +228,47 @@ async function loadChildren(parentId: string | null): Promise<TreeItem[]> {
 
 /**
  * Server-driven move callback.
- * Simulates latency, mutates the fake data source, and returns the
- * complete child list for the target branch.
+ * Simulates latency, mutates the fake data source, and returns
+ * both source and target branch items.
  */
-async function handleMoveItem(
-	itemId: string,
-	targetBranchId: string | null,
-	targetIndex: number,
-): Promise<TreeItem[]> {
+async function handleMoveItem(args: MoveItemArgs): Promise<MoveItemResult> {
 	await new Promise((resolve) => setTimeout(resolve, 500));
 
-	// Find and remove the item from its current branch
+	const { itemId, sourceBranchId, targetBranchId, targetIndex } = args;
+
+	// Remove from source branch
+	const sourceChildren = [...getFakeChildren(sourceBranchId)];
+	const idx = sourceChildren.findIndex((i) => i.id === itemId);
 	let movedItem: TreeItem | undefined;
-	const allBranchIds: (string | null)[] = [
-		null,
-		...Object.keys(fakeChildrenMap),
-	];
-	for (const branchId of allBranchIds) {
-		const children = getFakeChildren(branchId);
-		const idx = children.findIndex((i) => i.id === itemId);
-		if (idx !== -1) {
-			movedItem = children[idx];
-			const updated = [...children];
-			updated.splice(idx, 1);
-			setFakeChildren(branchId, updated);
-			break;
-		}
+	if (idx !== -1) {
+		movedItem = sourceChildren[idx];
+		sourceChildren.splice(idx, 1);
+		setFakeChildren(sourceBranchId, sourceChildren);
 	}
 
-	if (!movedItem) return getFakeChildren(targetBranchId);
+	if (!movedItem) {
+		return {
+			sourceBranchItems: getFakeChildren(sourceBranchId),
+			targetBranchItems: getFakeChildren(targetBranchId),
+		};
+	}
 
 	// Insert into target branch at the requested index
-	const targetChildren = [...getFakeChildren(targetBranchId)];
+	const targetChildren =
+		sourceBranchId === targetBranchId
+			? sourceChildren
+			: [...getFakeChildren(targetBranchId)];
 	const clampedIndex = Math.min(targetIndex, targetChildren.length);
 	targetChildren.splice(clampedIndex, 0, movedItem);
 	setFakeChildren(targetBranchId, targetChildren);
 
-	return targetChildren;
+	return {
+		sourceBranchItems:
+			sourceBranchId === targetBranchId
+				? targetChildren
+				: getFakeChildren(sourceBranchId),
+		targetBranchItems: targetChildren,
+	};
 }
 
 /**
