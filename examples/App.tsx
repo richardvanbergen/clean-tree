@@ -15,19 +15,193 @@ import "./styles.css";
  * Mutable so that onMoveItem can update it to simulate a server.
  */
 const fakeChildrenMap: Record<string, TreeItem[]> = {
-	"1": [{ id: "1.1", isFolder: true }, { id: "1.2" }],
-	"1.1": [{ id: "1.1.1" }, { id: "1.1.2" }],
-	"2": [{ id: "2.1" }, { id: "2.2", isFolder: true }, { id: "2.3" }],
-	"2.2": [{ id: "2.2.1" }],
+	// Documents
+	documents: [
+		{ id: "contracts", isFolder: true },
+		{ id: "invoices", isFolder: true },
+		{ id: "cover-letter.docx" },
+		{ id: "resume-2025.pdf" },
+		{ id: "tax-return-2024.pdf" },
+		{ id: "meeting-notes.md" },
+	],
+	contracts: [
+		{ id: "freelance-agreement.pdf" },
+		{ id: "nda-acme-corp.pdf" },
+		{ id: "lease-2024.pdf" },
+	],
+	invoices: [
+		{ id: "inv-001.pdf" },
+		{ id: "inv-002.pdf" },
+		{ id: "inv-003.pdf" },
+		{ id: "inv-004.pdf" },
+	],
+
+	// Projects
+	projects: [
+		{ id: "website-redesign", isFolder: true },
+		{ id: "mobile-app", isFolder: true },
+		{ id: "secret-side-project", isFolder: true },
+		{ id: "project-ideas.txt" },
+	],
+	"website-redesign": [
+		{ id: "wr-assets", isFolder: true },
+		{ id: "wr-components", isFolder: true },
+		{ id: "index.html" },
+		{ id: "styles.css" },
+		{ id: "app.tsx" },
+		{ id: "README.md" },
+	],
+	"wr-assets": [
+		{ id: "logo.svg" },
+		{ id: "hero-banner.png" },
+		{ id: "favicon.ico" },
+		{ id: "og-image.jpg" },
+	],
+	"wr-components": [
+		{ id: "Header.tsx" },
+		{ id: "Footer.tsx" },
+		{ id: "Sidebar.tsx" },
+		{ id: "Button.tsx" },
+		{ id: "Modal.tsx" },
+	],
+	"mobile-app": [
+		{ id: "ma-screens", isFolder: true },
+		{ id: "ma-utils", isFolder: true },
+		{ id: "App.swift" },
+		{ id: "Package.swift" },
+	],
+	"ma-screens": [
+		{ id: "HomeScreen.swift" },
+		{ id: "ProfileScreen.swift" },
+		{ id: "SettingsScreen.swift" },
+		{ id: "OnboardingScreen.swift" },
+	],
+	"ma-utils": [
+		{ id: "NetworkManager.swift" },
+		{ id: "CacheHelper.swift" },
+		{ id: "Extensions.swift" },
+	],
+	"secret-side-project": [
+		{ id: "ssp-experiments", isFolder: true },
+		{ id: "brainstorm.md" },
+		{ id: "prototype.py" },
+		{ id: "data.json" },
+	],
+	"ssp-experiments": [
+		{ id: "attempt-1.py" },
+		{ id: "attempt-2.py" },
+		{ id: "attempt-3.py" },
+		{ id: "results.csv" },
+	],
+
+	// Photos
+	photos: [
+		{ id: "vacations", isFolder: true },
+		{ id: "pets", isFolder: true },
+		{ id: "screenshots", isFolder: true },
+		{ id: "profile-pic.jpg" },
+		{ id: "panorama-mountains.jpg" },
+	],
+	vacations: [
+		{ id: "japan-2024", isFolder: true },
+		{ id: "iceland-2023", isFolder: true },
+		{ id: "beach-sunset.jpg" },
+		{ id: "airport-selfie.jpg" },
+	],
+	"japan-2024": [
+		{ id: "tokyo-tower.jpg" },
+		{ id: "ramen-shop.jpg" },
+		{ id: "shibuya-crossing.jpg" },
+		{ id: "mt-fuji.jpg" },
+		{ id: "temple-kyoto.jpg" },
+	],
+	"iceland-2023": [
+		{ id: "northern-lights.jpg" },
+		{ id: "geyser.jpg" },
+		{ id: "black-sand-beach.jpg" },
+	],
+	pets: [
+		{ id: "dog-park.jpg" },
+		{ id: "cat-sleeping.jpg" },
+		{ id: "fish-tank.mp4" },
+		{ id: "parrot-talking.mp4" },
+	],
+	screenshots: [
+		{ id: "bug-report-1.png" },
+		{ id: "bug-report-2.png" },
+		{ id: "high-score.png" },
+		{ id: "funny-error.png" },
+		{ id: "meme-template.png" },
+	],
+
+	// Music
+	music: [
+		{ id: "playlists", isFolder: true },
+		{ id: "recordings", isFolder: true },
+		{ id: "sample-beat.wav" },
+	],
+	playlists: [
+		{ id: "chill-vibes.m3u" },
+		{ id: "workout-bangers.m3u" },
+		{ id: "coding-focus.m3u" },
+		{ id: "90s-nostalgia.m3u" },
+	],
+	recordings: [
+		{ id: "voice-memo-jan.m4a" },
+		{ id: "guitar-riff.wav" },
+		{ id: "podcast-draft.mp3" },
+	],
+
+	// Config
+	config: [
+		{ id: "dotfiles", isFolder: true },
+		{ id: "ssh-keys", isFolder: true },
+		{ id: "settings.json" },
+		{ id: "preferences.yaml" },
+	],
+	dotfiles: [
+		{ id: ".zshrc" },
+		{ id: ".gitconfig" },
+		{ id: ".vimrc" },
+		{ id: ".tmux.conf" },
+		{ id: ".prettierrc" },
+		{ id: ".eslintrc.json" },
+	],
+	"ssh-keys": [
+		{ id: "id_ed25519" },
+		{ id: "id_ed25519.pub" },
+		{ id: "known_hosts" },
+	],
+
+	// Downloads
+	downloads: [
+		{ id: "installers", isFolder: true },
+		{ id: "random-pdf.pdf" },
+		{ id: "mystery-file.zip" },
+		{ id: "definitely-not-a-virus.exe" },
+		{ id: "lecture-notes-week3.pdf" },
+		{ id: "receipt-amazon.pdf" },
+		{ id: "cat-video.mp4" },
+	],
+	installers: [
+		{ id: "node-v22.pkg" },
+		{ id: "docker-desktop.dmg" },
+		{ id: "vscode-arm64.deb" },
+	],
 };
 
 /** Root-level items, kept in sync with fakeChildrenMap[__root__] */
 let fakeRootItems: TreeItem[] = [
-	{ id: "1", isFolder: true },
-	{ id: "2", isFolder: true },
-	{ id: "3" },
-	{ id: "4" },
-	{ id: "5" },
+	{ id: "documents", isFolder: true },
+	{ id: "projects", isFolder: true },
+	{ id: "photos", isFolder: true },
+	{ id: "music", isFolder: true },
+	{ id: "config", isFolder: true },
+	{ id: "downloads", isFolder: true },
+	{ id: "todo.txt" },
+	{ id: "scratch.md" },
+	{ id: "passwords-DO-NOT-OPEN.txt" },
+	{ id: ".DS_Store" },
 ];
 
 function getFakeChildren(branchId: string | null): TreeItem[] {
@@ -96,11 +270,16 @@ async function handleMoveItem(
  * Children are loaded asynchronously when a folder is expanded.
  */
 const initialData: TreeItemData[] = [
-	{ id: "1", isFolder: true },
-	{ id: "2", isFolder: true },
-	{ id: "3" },
-	{ id: "4" },
-	{ id: "5" },
+	{ id: "documents", isFolder: true },
+	{ id: "projects", isFolder: true },
+	{ id: "photos", isFolder: true },
+	{ id: "music", isFolder: true },
+	{ id: "config", isFolder: true },
+	{ id: "downloads", isFolder: true },
+	{ id: "todo.txt" },
+	{ id: "scratch.md" },
+	{ id: "passwords-DO-NOT-OPEN.txt" },
+	{ id: ".DS_Store" },
 ];
 
 const INDENT_PER_LEVEL = 20;
