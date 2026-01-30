@@ -177,7 +177,6 @@ function RecursiveItem({
 				>
 					{(children, isLoading) => (
 						<>
-							{isLoading && renderLoading?.()}
 							{children.map((child, i) => (
 								<RecursiveItem
 									key={child.id}
@@ -192,6 +191,7 @@ function RecursiveItem({
 									renderLoading={renderLoading}
 								/>
 							))}
+							{isLoading && renderLoading?.()}
 						</>
 					)}
 				</TreeBranch>
@@ -221,7 +221,6 @@ export function Tree({
 			<TreeBranch id={null} loadChildren={loadChildren} onMoveItem={onMoveItem}>
 				{(rootItems, isLoading) => (
 					<>
-						{isLoading && renderLoading?.()}
 						{rootItems.map((item, index) => (
 							<RecursiveItem
 								key={item.id}
@@ -236,6 +235,7 @@ export function Tree({
 								renderLoading={renderLoading}
 							/>
 						))}
+						{isLoading && renderLoading?.()}
 						<RootEndDropZone
 							itemCount={rootItems.length}
 							renderIndicator={renderDropZoneIndicator}
