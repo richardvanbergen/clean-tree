@@ -1,5 +1,6 @@
 import { triggerPostMoveFlash } from "@atlaskit/pragmatic-drag-and-drop-flourish/trigger-post-move-flash";
 import { DropIndicator } from "@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/tree-item";
+import { nanoid } from "nanoid";
 import { useRef, useState } from "react";
 import {
 	type MoveItemArgs,
@@ -13,197 +14,201 @@ import {
 
 import "./styles.css";
 
+type ExampleTreeItem = TreeItem & { name: string };
+
 /**
- * Default seed data — used to populate localStorage on first visit.
+ * Nested seed tree — human-readable names with optional children.
+ * `buildSeedData()` walks this structure and assigns unique nanoid() IDs.
  */
-const defaultChildren: Record<string, TreeItem[]> = {
-	// Documents
-	documents: [
-		{ id: "contracts", isFolder: true },
-		{ id: "invoices", isFolder: true },
-		{ id: "cover-letter.docx" },
-		{ id: "resume-2025.pdf" },
-		{ id: "tax-return-2024.pdf" },
-		{ id: "meeting-notes.md" },
-	],
-	contracts: [
-		{ id: "freelance-agreement.pdf" },
-		{ id: "nda-acme-corp.pdf" },
-		{ id: "lease-2024.pdf" },
-	],
-	invoices: [
-		{ id: "inv-001.pdf" },
-		{ id: "inv-002.pdf" },
-		{ id: "inv-003.pdf" },
-		{ id: "inv-004.pdf" },
-	],
-
-	// Projects
-	projects: [
-		{ id: "website-redesign", isFolder: true },
-		{ id: "mobile-app", isFolder: true },
-		{ id: "secret-side-project", isFolder: true },
-		{ id: "project-ideas.txt" },
-	],
-	"website-redesign": [
-		{ id: "wr-assets", isFolder: true },
-		{ id: "wr-components", isFolder: true },
-		{ id: "index.html" },
-		{ id: "styles.css" },
-		{ id: "app.tsx" },
-		{ id: "README.md" },
-	],
-	"wr-assets": [
-		{ id: "logo.svg" },
-		{ id: "hero-banner.png" },
-		{ id: "favicon.ico" },
-		{ id: "og-image.jpg" },
-	],
-	"wr-components": [
-		{ id: "Header.tsx" },
-		{ id: "Footer.tsx" },
-		{ id: "Sidebar.tsx" },
-		{ id: "Button.tsx" },
-		{ id: "Modal.tsx" },
-	],
-	"mobile-app": [
-		{ id: "ma-screens", isFolder: true },
-		{ id: "ma-utils", isFolder: true },
-		{ id: "App.swift" },
-		{ id: "Package.swift" },
-	],
-	"ma-screens": [
-		{ id: "HomeScreen.swift" },
-		{ id: "ProfileScreen.swift" },
-		{ id: "SettingsScreen.swift" },
-		{ id: "OnboardingScreen.swift" },
-	],
-	"ma-utils": [
-		{ id: "NetworkManager.swift" },
-		{ id: "CacheHelper.swift" },
-		{ id: "Extensions.swift" },
-	],
-	"secret-side-project": [
-		{ id: "ssp-experiments", isFolder: true },
-		{ id: "brainstorm.md" },
-		{ id: "prototype.py" },
-		{ id: "data.json" },
-	],
-	"ssp-experiments": [
-		{ id: "attempt-1.py" },
-		{ id: "attempt-2.py" },
-		{ id: "attempt-3.py" },
-		{ id: "results.csv" },
-	],
-
-	// Photos
-	photos: [
-		{ id: "vacations", isFolder: true },
-		{ id: "pets", isFolder: true },
-		{ id: "screenshots", isFolder: true },
-		{ id: "profile-pic.jpg" },
-		{ id: "panorama-mountains.jpg" },
-	],
-	vacations: [
-		{ id: "japan-2024", isFolder: true },
-		{ id: "iceland-2023", isFolder: true },
-		{ id: "beach-sunset.jpg" },
-		{ id: "airport-selfie.jpg" },
-	],
-	"japan-2024": [
-		{ id: "tokyo-tower.jpg" },
-		{ id: "ramen-shop.jpg" },
-		{ id: "shibuya-crossing.jpg" },
-		{ id: "mt-fuji.jpg" },
-		{ id: "temple-kyoto.jpg" },
-	],
-	"iceland-2023": [
-		{ id: "northern-lights.jpg" },
-		{ id: "geyser.jpg" },
-		{ id: "black-sand-beach.jpg" },
-	],
-	pets: [
-		{ id: "dog-park.jpg" },
-		{ id: "cat-sleeping.jpg" },
-		{ id: "fish-tank.mp4" },
-		{ id: "parrot-talking.mp4" },
-	],
-	screenshots: [
-		{ id: "bug-report-1.png" },
-		{ id: "bug-report-2.png" },
-		{ id: "high-score.png" },
-		{ id: "funny-error.png" },
-		{ id: "meme-template.png" },
-	],
-
-	// Music
-	music: [
-		{ id: "playlists", isFolder: true },
-		{ id: "recordings", isFolder: true },
-		{ id: "sample-beat.wav" },
-	],
-	playlists: [
-		{ id: "chill-vibes.m3u" },
-		{ id: "workout-bangers.m3u" },
-		{ id: "coding-focus.m3u" },
-		{ id: "90s-nostalgia.m3u" },
-	],
-	recordings: [
-		{ id: "voice-memo-jan.m4a" },
-		{ id: "guitar-riff.wav" },
-		{ id: "podcast-draft.mp3" },
-	],
-
-	// Config
-	config: [
-		{ id: "dotfiles", isFolder: true },
-		{ id: "ssh-keys", isFolder: true },
-		{ id: "settings.json" },
-		{ id: "preferences.yaml" },
-	],
-	dotfiles: [
-		{ id: ".zshrc" },
-		{ id: ".gitconfig" },
-		{ id: ".vimrc" },
-		{ id: ".tmux.conf" },
-		{ id: ".prettierrc" },
-		{ id: ".eslintrc.json" },
-	],
-	"ssh-keys": [
-		{ id: "id_ed25519" },
-		{ id: "id_ed25519.pub" },
-		{ id: "known_hosts" },
-	],
-
-	// Downloads
-	downloads: [
-		{ id: "installers", isFolder: true },
-		{ id: "random-pdf.pdf" },
-		{ id: "mystery-file.zip" },
-		{ id: "definitely-not-a-virus.exe" },
-		{ id: "lecture-notes-week3.pdf" },
-		{ id: "receipt-amazon.pdf" },
-		{ id: "cat-video.mp4" },
-	],
-	installers: [
-		{ id: "node-v22.pkg" },
-		{ id: "docker-desktop.dmg" },
-		{ id: "vscode-arm64.deb" },
-	],
+type SeedNode = {
+	name: string;
+	isFolder?: boolean;
+	children?: SeedNode[];
 };
 
-const defaultRootItems: TreeItem[] = [
-	{ id: "documents", isFolder: true },
-	{ id: "projects", isFolder: true },
-	{ id: "photos", isFolder: true },
-	{ id: "music", isFolder: true },
-	{ id: "config", isFolder: true },
-	{ id: "downloads", isFolder: true },
-	{ id: "todo.txt" },
-	{ id: "scratch.md" },
-	{ id: "passwords-DO-NOT-OPEN.txt" },
-	{ id: ".DS_Store" },
+const seedTree: SeedNode[] = [
+	{
+		name: "documents", isFolder: true, children: [
+			{ name: "contracts", isFolder: true, children: [
+				{ name: "freelance-agreement.pdf" },
+				{ name: "nda-acme-corp.pdf" },
+				{ name: "lease-2024.pdf" },
+			]},
+			{ name: "invoices", isFolder: true, children: [
+				{ name: "inv-001.pdf" },
+				{ name: "inv-002.pdf" },
+				{ name: "inv-003.pdf" },
+				{ name: "inv-004.pdf" },
+			]},
+			{ name: "cover-letter.docx" },
+			{ name: "resume-2025.pdf" },
+			{ name: "tax-return-2024.pdf" },
+			{ name: "meeting-notes.md" },
+		],
+	},
+	{
+		name: "projects", isFolder: true, children: [
+			{ name: "website-redesign", isFolder: true, children: [
+				{ name: "assets", isFolder: true, children: [
+					{ name: "logo.svg" },
+					{ name: "hero-banner.png" },
+					{ name: "favicon.ico" },
+					{ name: "og-image.jpg" },
+				]},
+				{ name: "components", isFolder: true, children: [
+					{ name: "Header.tsx" },
+					{ name: "Footer.tsx" },
+					{ name: "Sidebar.tsx" },
+					{ name: "Button.tsx" },
+					{ name: "Modal.tsx" },
+				]},
+				{ name: "index.html" },
+				{ name: "styles.css" },
+				{ name: "app.tsx" },
+				{ name: "README.md" },
+			]},
+			{ name: "mobile-app", isFolder: true, children: [
+				{ name: "screens", isFolder: true, children: [
+					{ name: "HomeScreen.swift" },
+					{ name: "ProfileScreen.swift" },
+					{ name: "SettingsScreen.swift" },
+					{ name: "OnboardingScreen.swift" },
+				]},
+				{ name: "utils", isFolder: true, children: [
+					{ name: "NetworkManager.swift" },
+					{ name: "CacheHelper.swift" },
+					{ name: "Extensions.swift" },
+				]},
+				{ name: "App.swift" },
+				{ name: "Package.swift" },
+			]},
+			{ name: "secret-side-project", isFolder: true, children: [
+				{ name: "experiments", isFolder: true, children: [
+					{ name: "attempt-1.py" },
+					{ name: "attempt-2.py" },
+					{ name: "attempt-3.py" },
+					{ name: "results.csv" },
+				]},
+				{ name: "brainstorm.md" },
+				{ name: "prototype.py" },
+				{ name: "data.json" },
+			]},
+			{ name: "project-ideas.txt" },
+		],
+	},
+	{
+		name: "photos", isFolder: true, children: [
+			{ name: "vacations", isFolder: true, children: [
+				{ name: "japan-2024", isFolder: true, children: [
+					{ name: "tokyo-tower.jpg" },
+					{ name: "ramen-shop.jpg" },
+					{ name: "shibuya-crossing.jpg" },
+					{ name: "mt-fuji.jpg" },
+					{ name: "temple-kyoto.jpg" },
+				]},
+				{ name: "iceland-2023", isFolder: true, children: [
+					{ name: "northern-lights.jpg" },
+					{ name: "geyser.jpg" },
+					{ name: "black-sand-beach.jpg" },
+				]},
+				{ name: "beach-sunset.jpg" },
+				{ name: "airport-selfie.jpg" },
+			]},
+			{ name: "pets", isFolder: true, children: [
+				{ name: "dog-park.jpg" },
+				{ name: "cat-sleeping.jpg" },
+				{ name: "fish-tank.mp4" },
+				{ name: "parrot-talking.mp4" },
+			]},
+			{ name: "screenshots", isFolder: true, children: [
+				{ name: "bug-report-1.png" },
+				{ name: "bug-report-2.png" },
+				{ name: "high-score.png" },
+				{ name: "funny-error.png" },
+				{ name: "meme-template.png" },
+			]},
+			{ name: "profile-pic.jpg" },
+			{ name: "panorama-mountains.jpg" },
+		],
+	},
+	{
+		name: "music", isFolder: true, children: [
+			{ name: "playlists", isFolder: true, children: [
+				{ name: "chill-vibes.m3u" },
+				{ name: "workout-bangers.m3u" },
+				{ name: "coding-focus.m3u" },
+				{ name: "90s-nostalgia.m3u" },
+			]},
+			{ name: "recordings", isFolder: true, children: [
+				{ name: "voice-memo-jan.m4a" },
+				{ name: "guitar-riff.wav" },
+				{ name: "podcast-draft.mp3" },
+			]},
+			{ name: "sample-beat.wav" },
+		],
+	},
+	{
+		name: "config", isFolder: true, children: [
+			{ name: "dotfiles", isFolder: true, children: [
+				{ name: ".zshrc" },
+				{ name: ".gitconfig" },
+				{ name: ".vimrc" },
+				{ name: ".tmux.conf" },
+				{ name: ".prettierrc" },
+				{ name: ".eslintrc.json" },
+			]},
+			{ name: "ssh-keys", isFolder: true, children: [
+				{ name: "id_ed25519" },
+				{ name: "id_ed25519.pub" },
+				{ name: "known_hosts" },
+			]},
+			{ name: "settings.json" },
+			{ name: "preferences.yaml" },
+		],
+	},
+	{
+		name: "downloads", isFolder: true, children: [
+			{ name: "installers", isFolder: true, children: [
+				{ name: "node-v22.pkg" },
+				{ name: "docker-desktop.dmg" },
+				{ name: "vscode-arm64.deb" },
+			]},
+			{ name: "random-pdf.pdf" },
+			{ name: "mystery-file.zip" },
+			{ name: "definitely-not-a-virus.exe" },
+			{ name: "lecture-notes-week3.pdf" },
+			{ name: "receipt-amazon.pdf" },
+			{ name: "cat-video.mp4" },
+		],
+	},
+	{ name: "todo.txt" },
+	{ name: "scratch.md" },
+	{ name: "passwords-DO-NOT-OPEN.txt" },
+	{ name: ".DS_Store" },
 ];
+
+/**
+ * Walk the nested seed tree, assign nanoid() to each node,
+ * and build the flat { root, children } structure.
+ */
+function buildSeedData(): { root: ExampleTreeItem[]; children: Record<string, ExampleTreeItem[]> } {
+	const children: Record<string, ExampleTreeItem[]> = {};
+
+	function walk(nodes: SeedNode[]): ExampleTreeItem[] {
+		return nodes.map((node) => {
+			const id = nanoid();
+			const item: ExampleTreeItem = { id, name: node.name };
+			if (node.isFolder) item.isFolder = true;
+			if (node.children) {
+				children[id] = walk(node.children);
+			}
+			return item;
+		});
+	}
+
+	const root = walk(seedTree);
+	return { root, children };
+}
 
 /**
  * localStorage-backed data store.
@@ -212,8 +217,8 @@ const defaultRootItems: TreeItem[] = [
 const STORAGE_KEY = "clean-tree-demo";
 
 interface StoredData {
-	root: TreeItem[];
-	children: Record<string, TreeItem[]>;
+	root: ExampleTreeItem[];
+	children: Record<string, ExampleTreeItem[]>;
 	openState?: Record<string, boolean>;
 }
 
@@ -222,18 +227,24 @@ const db = {
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (raw) {
 			try {
-				return JSON.parse(raw);
+				const data = JSON.parse(raw) as StoredData;
+				// Detect old format (items missing `name` field) and reseed
+				if (data.root.length > 0 && !("name" in data.root[0])) {
+					const seed = buildSeedData();
+					const seeded: StoredData = { root: seed.root, children: seed.children };
+					localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
+					return seeded;
+				}
+				return data;
 			} catch {
 				// corrupted — fall through to seed
 			}
 		}
 		// Seed with defaults
-		const seed: StoredData = {
-			root: defaultRootItems,
-			children: defaultChildren,
-		};
-		localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-		return seed;
+		const seed = buildSeedData();
+		const seeded: StoredData = { root: seed.root, children: seed.children };
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
+		return seeded;
 	},
 
 	_write(data: StoredData) {
@@ -464,7 +475,7 @@ function renderTreeItem({
 				</span>
 
 				{/* Item label */}
-				<span>Item {item.id}</span>
+				<span>{(item as ExampleTreeItem).name}</span>
 			</div>
 		</div>
 	);
@@ -481,7 +492,7 @@ function renderDragPreview(item: TreeItem) {
 				fontSize: 14,
 			}}
 		>
-			{item.id}
+			{(item as ExampleTreeItem).name}
 		</div>
 	);
 }
@@ -555,20 +566,18 @@ function CreateItemIcon() {
 	);
 }
 
-let nextId = 1;
-
 export default function App() {
 	const [items] = useState(initialData);
 	const treeRef = useRef<TreeHandle>(null);
 
 	function handleCreateFolder() {
-		const id = `new-folder-${nextId++}`;
-		treeRef.current?.createFolder({ id, isFolder: true });
+		const id = nanoid();
+		treeRef.current?.createFolder({ id, isFolder: true, name: "New Folder" } as ExampleTreeItem);
 	}
 
 	function handleCreateItem() {
-		const id = `new-item-${nextId++}`;
-		treeRef.current?.createItem({ id });
+		const id = nanoid();
+		treeRef.current?.createItem({ id, name: "New Item" } as ExampleTreeItem);
 	}
 
 	return (

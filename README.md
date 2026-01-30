@@ -43,8 +43,10 @@ Add all visual customizations by providing the optional render props:
 ```tsx
 import { DropIndicator } from '@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/tree-item';
 import { triggerPostMoveFlash } from '@atlaskit/pragmatic-drag-and-drop-flourish/trigger-post-move-flash';
+import { useRef } from 'react';
 import {
   Tree,
+  type TreeHandle,
   type TreeItem,
   type TreeItemData,
   type TreeItemRenderProps,
@@ -107,18 +109,30 @@ function renderLoading() {
 }
 
 export default function App() {
+  const treeRef = useRef<TreeHandle>(null);
+
   return (
-    <Tree
-      items={items}
-      renderItem={renderItem}
-      renderDragPreview={renderDragPreview}
-      renderDropZoneIndicator={renderDropZoneIndicator}
-      onItemMoved={triggerPostMoveFlash}
-      indentPerLevel={20}
-      loadChildren={loadChildren}
-      onMoveItem={handleMoveItem}
-      renderLoading={renderLoading}
-    />
+    <>
+      <button onClick={() => treeRef.current?.createItem({ id: 'new-file.txt' })}>
+        New File
+      </button>
+      <Tree
+        ref={treeRef}
+        items={items}
+        renderItem={renderItem}
+        renderDragPreview={renderDragPreview}
+        renderDropZoneIndicator={renderDropZoneIndicator}
+        onItemMoved={triggerPostMoveFlash}
+        indentPerLevel={20}
+        loadChildren={loadChildren}
+        onMoveItem={handleMoveItem}
+        onOpenStateChange={(itemId, isOpen) => {
+          console.log(`${itemId} is now ${isOpen ? 'open' : 'closed'}`);
+        }}
+        initialOpenState={{ documents: true }}
+        renderLoading={renderLoading}
+      />
+    </>
   );
 }
 ```
@@ -127,7 +141,7 @@ export default function App() {
 
 ### `<Tree>`
 
-High-level component that renders a full tree from nested data. Internally composes `TreeProvider`, `TreeBranch`, and `TreeItem`.
+High-level component that renders a full tree from nested data. Internally composes `TreeProvider`, `TreeBranch`, and `TreeItem`. Accepts a `ref` to expose imperative methods via `TreeHandle`.
 
 ```ts
 type TreeProps = {
@@ -144,6 +158,8 @@ type TreeProps = {
   onDeleteItem?: (itemId: string, branchId: string | null) => Promise<TreeItem[]>;
   onDeleteFolder?: (folderId: string, branchId: string | null) => Promise<TreeItem[]>;
   renderLoading?: () => ReactNode;
+  onOpenStateChange?: (itemId: string, isOpen: boolean) => void;
+  initialOpenState?: Record<string, boolean>;
 };
 ```
 
@@ -162,6 +178,40 @@ type TreeProps = {
 | `onDeleteItem` | `(itemId: string, branchId: string \| null) => Promise<TreeItem[]>` | No | Called after an item is deleted. Returns updated branch items. Rolls back on failure. |
 | `onDeleteFolder` | `(folderId: string, branchId: string \| null) => Promise<TreeItem[]>` | No | Called after a folder is deleted. Returns updated branch items. Rolls back on failure. |
 | `renderLoading` | `() => ReactNode` | No | Rendered after a branch's items while `loadChildren` is in progress. |
+| `onOpenStateChange` | `(itemId: string, isOpen: boolean) => void` | No | Called when an item is expanded or collapsed. Use for persisting open/closed state. |
+| `initialOpenState` | `Record<string, boolean>` | No | Initial open/closed state for items by ID. Merged with any inline `isOpen` values from `TreeItemData` (inline values take precedence). |
+
+### `TreeHandle`
+
+Imperative handle exposed via `ref` on `<Tree>`. Use it to programmatically create items and folders in the root branch.
+
+```ts
+type TreeHandle = {
+  createItem: (item: TreeItem) => void;
+  createFolder: (folder: TreeItem) => void;
+};
+```
+
+```tsx
+import { useRef } from 'react';
+import { Tree, type TreeHandle } from 'clean-tree';
+
+function App() {
+  const treeRef = useRef<TreeHandle>(null);
+
+  return (
+    <>
+      <button onClick={() => treeRef.current?.createItem({ id: 'new-file.txt' })}>
+        New File
+      </button>
+      <button onClick={() => treeRef.current?.createFolder({ id: 'new-folder', isFolder: true })}>
+        New Folder
+      </button>
+      <Tree ref={treeRef} items={items} renderItem={renderItem} />
+    </>
+  );
+}
+```
 
 ## Core Components
 
@@ -188,6 +238,7 @@ type TreeProviderProps = {
   initialBranchData?: Map<string | null, TreeItem[]>;
   initialOpenState?: Map<string, boolean>;
   onItemMoved?: (element: HTMLElement) => void;
+  onOpenStateChange?: (itemId: string, isOpen: boolean) => void;
   children: ReactNode;
 };
 ```
@@ -197,6 +248,7 @@ type TreeProviderProps = {
 | `initialBranchData` | `Map<string \| null, TreeItem[]>` | No | Pre-flattened branch data. Key is the parent item ID (`null` for root). |
 | `initialOpenState` | `Map<string, boolean>` | No | Initial open/closed state for items by ID. |
 | `onItemMoved` | `(element: HTMLElement) => void` | No | Called after an item is added to the DOM via drag-drop. |
+| `onOpenStateChange` | `(itemId: string, isOpen: boolean) => void` | No | Called when an item is expanded or collapsed. Fires via the internal event system. |
 
 ### `<TreeBranch>`
 
