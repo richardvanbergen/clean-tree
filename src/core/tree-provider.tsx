@@ -30,14 +30,17 @@ export type TreeProviderProps = {
 	initialBranchData?: Map<string | null, TreeItem[]>;
 	initialOpenState?: Map<string, boolean>;
 	onItemMoved?: (element: HTMLElement) => void;
+	onOpenStateChange?: (itemId: string, isOpen: boolean) => void;
 	children: ReactNode;
 };
 
 function TreeProviderInner({
 	onItemMoved,
+	onOpenStateChange,
 	children,
 }: {
 	onItemMoved?: (element: HTMLElement) => void;
+	onOpenStateChange?: (itemId: string, isOpen: boolean) => void;
 	children: ReactNode;
 }) {
 	const rootContext = useTreeRootContext();
@@ -58,6 +61,17 @@ function TreeProviderInner({
 			}
 		});
 	}, [rootContext, registry, onItemMoved]);
+
+	// Listen for open-state-changed events to notify via callback
+	useEffect(() => {
+		if (!onOpenStateChange) return;
+
+		return rootContext.addEventListener((event) => {
+			if (event.type === "open-state-changed") {
+				onOpenStateChange(event.payload.itemId, event.payload.isOpen);
+			}
+		});
+	}, [rootContext, onOpenStateChange]);
 
 	const context = useMemo<TreeContextValue>(
 		() => ({
@@ -87,6 +101,7 @@ export function TreeProvider({
 	initialBranchData,
 	initialOpenState,
 	onItemMoved,
+	onOpenStateChange,
 	children,
 }: TreeProviderProps) {
 	return (
@@ -94,7 +109,7 @@ export function TreeProvider({
 			initialBranchData={initialBranchData}
 			initialOpenState={initialOpenState}
 		>
-			<TreeProviderInner onItemMoved={onItemMoved}>
+			<TreeProviderInner onItemMoved={onItemMoved} onOpenStateChange={onOpenStateChange}>
 				{children}
 			</TreeProviderInner>
 		</TreeRootProvider>

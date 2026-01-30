@@ -1,22 +1,22 @@
 import { triggerPostMoveFlash } from "@atlaskit/pragmatic-drag-and-drop-flourish/trigger-post-move-flash";
 import { DropIndicator } from "@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/tree-item";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
 	type MoveItemArgs,
 	type MoveItemResult,
 	Tree,
+	type TreeHandle,
 	type TreeItem,
 	type TreeItemData,
 	type TreeItemRenderProps,
 } from "../src/index.ts";
+
 import "./styles.css";
 
 /**
- * Fake async data source keyed by folder ID.
- * When a folder is expanded, its children are loaded from here.
- * Mutable so that onMoveItem can update it to simulate a server.
+ * Default seed data — used to populate localStorage on first visit.
  */
-const fakeChildrenMap: Record<string, TreeItem[]> = {
+const defaultChildren: Record<string, TreeItem[]> = {
 	// Documents
 	documents: [
 		{ id: "contracts", isFolder: true },
@@ -192,8 +192,7 @@ const fakeChildrenMap: Record<string, TreeItem[]> = {
 	],
 };
 
-/** Root-level items, kept in sync with fakeChildrenMap[__root__] */
-let fakeRootItems: TreeItem[] = [
+const defaultRootItems: TreeItem[] = [
 	{ id: "documents", isFolder: true },
 	{ id: "projects", isFolder: true },
 	{ id: "photos", isFolder: true },
@@ -206,24 +205,92 @@ let fakeRootItems: TreeItem[] = [
 	{ id: ".DS_Store" },
 ];
 
-function getFakeChildren(branchId: string | null): TreeItem[] {
-	if (branchId === null) return fakeRootItems;
-	return fakeChildrenMap[branchId] ?? [];
+/**
+ * localStorage-backed data store.
+ * Seeds from default data on first access; persists all mutations.
+ */
+const STORAGE_KEY = "clean-tree-demo";
+
+interface StoredData {
+	root: TreeItem[];
+	children: Record<string, TreeItem[]>;
+	openState?: Record<string, boolean>;
 }
 
-function setFakeChildren(branchId: string | null, items: TreeItem[]) {
-	if (branchId === null) {
-		fakeRootItems = items;
-	} else {
-		fakeChildrenMap[branchId] = items;
-	}
-}
+const db = {
+	_read(): StoredData {
+		const raw = localStorage.getItem(STORAGE_KEY);
+		if (raw) {
+			try {
+				return JSON.parse(raw);
+			} catch {
+				// corrupted — fall through to seed
+			}
+		}
+		// Seed with defaults
+		const seed: StoredData = {
+			root: defaultRootItems,
+			children: defaultChildren,
+		};
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+		return seed;
+	},
+
+	_write(data: StoredData) {
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+	},
+
+	getRootItems(): TreeItem[] {
+		return this._read().root;
+	},
+
+	setRootItems(items: TreeItem[]) {
+		const data = this._read();
+		data.root = items;
+		this._write(data);
+	},
+
+	getChildren(branchId: string): TreeItem[] {
+		return this._read().children[branchId] ?? [];
+	},
+
+	setChildren(branchId: string, items: TreeItem[]) {
+		const data = this._read();
+		data.children[branchId] = items;
+		this._write(data);
+	},
+
+	getBranch(branchId: string | null): TreeItem[] {
+		if (branchId === null) return this.getRootItems();
+		return this.getChildren(branchId);
+	},
+
+	setBranch(branchId: string | null, items: TreeItem[]) {
+		if (branchId === null) {
+			this.setRootItems(items);
+		} else {
+			this.setChildren(branchId, items);
+		}
+	},
+
+	getOpenState(): Record<string, boolean> {
+		return this._read().openState ?? {};
+	},
+
+	setItemOpen(itemId: string, isOpen: boolean) {
+		const data = this._read();
+		const openState = data.openState ?? {};
+		openState[itemId] = isOpen;
+		data.openState = openState;
+		this._write(data);
+	},
+};
 
 async function loadChildren(parentId: string | null): Promise<TreeItem[]> {
 	// Simulate network latency
 	await new Promise((resolve) => setTimeout(resolve, 800));
 	if (parentId === null) return [];
-	return fakeChildrenMap[parentId] ?? [];
+	return db.getChildren(parentId);
 }
 
 /**
@@ -237,19 +304,19 @@ async function handleMoveItem(args: MoveItemArgs): Promise<MoveItemResult> {
 	const { itemId, sourceBranchId, targetBranchId, targetIndex } = args;
 
 	// Remove from source branch
-	const sourceChildren = [...getFakeChildren(sourceBranchId)];
+	const sourceChildren = [...db.getBranch(sourceBranchId)];
 	const idx = sourceChildren.findIndex((i) => i.id === itemId);
 	let movedItem: TreeItem | undefined;
 	if (idx !== -1) {
 		movedItem = sourceChildren[idx];
 		sourceChildren.splice(idx, 1);
-		setFakeChildren(sourceBranchId, sourceChildren);
+		db.setBranch(sourceBranchId, sourceChildren);
 	}
 
 	if (!movedItem) {
 		return {
-			sourceBranchItems: getFakeChildren(sourceBranchId),
-			targetBranchItems: getFakeChildren(targetBranchId),
+			sourceBranchItems: db.getBranch(sourceBranchId),
+			targetBranchItems: db.getBranch(targetBranchId),
 		};
 	}
 
@@ -257,36 +324,51 @@ async function handleMoveItem(args: MoveItemArgs): Promise<MoveItemResult> {
 	const targetChildren =
 		sourceBranchId === targetBranchId
 			? sourceChildren
-			: [...getFakeChildren(targetBranchId)];
+			: [...db.getBranch(targetBranchId)];
 	const clampedIndex = Math.min(targetIndex, targetChildren.length);
 	targetChildren.splice(clampedIndex, 0, movedItem);
-	setFakeChildren(targetBranchId, targetChildren);
+	db.setBranch(targetBranchId, targetChildren);
 
 	return {
 		sourceBranchItems:
 			sourceBranchId === targetBranchId
 				? targetChildren
-				: getFakeChildren(sourceBranchId),
+				: db.getBranch(sourceBranchId),
 		targetBranchItems: targetChildren,
 	};
 }
 
 /**
- * Initial tree data — folders start collapsed with no inline children.
- * Children are loaded asynchronously when a folder is expanded.
+ * Initial tree data — loaded from localStorage (seeded on first visit).
+ * Open state is restored separately via the initialOpenState prop,
+ * which covers all depths (not just root items).
  */
-const initialData: TreeItemData[] = [
-	{ id: "documents", isFolder: true },
-	{ id: "projects", isFolder: true },
-	{ id: "photos", isFolder: true },
-	{ id: "music", isFolder: true },
-	{ id: "config", isFolder: true },
-	{ id: "downloads", isFolder: true },
-	{ id: "todo.txt" },
-	{ id: "scratch.md" },
-	{ id: "passwords-DO-NOT-OPEN.txt" },
-	{ id: ".DS_Store" },
-];
+const initialData: TreeItemData[] = db.getRootItems();
+const persistedOpenState: Record<string, boolean> = db.getOpenState();
+
+function handleOpenStateChange(itemId: string, isOpen: boolean) {
+	db.setItemOpen(itemId, isOpen);
+}
+
+async function onCreateItem(
+	parentBranchId: string | null,
+	item: TreeItem,
+): Promise<TreeItem[]> {
+	await new Promise((resolve) => setTimeout(resolve, 300));
+	const branch = [...db.getBranch(parentBranchId), item];
+	db.setBranch(parentBranchId, branch);
+	return branch;
+}
+
+async function onCreateFolder(
+	parentBranchId: string | null,
+	folder: TreeItem,
+): Promise<TreeItem[]> {
+	await new Promise((resolve) => setTimeout(resolve, 300));
+	const branch = [...db.getBranch(parentBranchId), folder];
+	db.setBranch(parentBranchId, branch);
+	return branch;
+}
 
 const INDENT_PER_LEVEL = 20;
 
@@ -437,8 +519,57 @@ function renderLoading() {
 	);
 }
 
+function CreateFolderIcon() {
+	return (
+		<svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
+			<path d="M20 18H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z" />
+			<text
+				x="22"
+				y="20"
+				fontSize="14"
+				fontWeight="bold"
+				fill="currentColor"
+				fontFamily="system-ui, sans-serif"
+			>
+				+
+			</text>
+		</svg>
+	);
+}
+
+function CreateItemIcon() {
+	return (
+		<svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
+			<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm4 18H6V4h7v5h5v11Z" />
+			<text
+				x="22"
+				y="20"
+				fontSize="14"
+				fontWeight="bold"
+				fill="currentColor"
+				fontFamily="system-ui, sans-serif"
+			>
+				+
+			</text>
+		</svg>
+	);
+}
+
+let nextId = 1;
+
 export default function App() {
 	const [items] = useState(initialData);
+	const treeRef = useRef<TreeHandle>(null);
+
+	function handleCreateFolder() {
+		const id = `new-folder-${nextId++}`;
+		treeRef.current?.createFolder({ id, isFolder: true });
+	}
+
+	function handleCreateItem() {
+		const id = `new-item-${nextId++}`;
+		treeRef.current?.createItem({ id });
+	}
 
 	return (
 		<div style={{ padding: 20, fontFamily: "system-ui, sans-serif" }}>
@@ -456,7 +587,61 @@ export default function App() {
 					padding: 8,
 				}}
 			>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "space-between",
+						padding: "4px 8px 8px",
+						borderBottom: "1px solid #eee",
+						marginBottom: 8,
+					}}
+				>
+					<span style={{ fontWeight: 600, fontSize: 14 }}>Menu</span>
+					<div style={{ display: "flex", gap: 4 }}>
+						<button
+							onClick={handleCreateFolder}
+							title="Create Folder"
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: 2,
+								background: "none",
+								border: "1px solid #ddd",
+								borderRadius: 4,
+								padding: "4px 6px",
+								cursor: "pointer",
+								color: "#555",
+								fontSize: 13,
+							}}
+						>
+							<CreateFolderIcon />
+							<span>+</span>
+						</button>
+						<button
+							onClick={handleCreateItem}
+							title="Create Item"
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: 2,
+								background: "none",
+								border: "1px solid #ddd",
+								borderRadius: 4,
+								padding: "4px 6px",
+								cursor: "pointer",
+								color: "#555",
+								fontSize: 13,
+							}}
+						>
+							<CreateItemIcon />
+							<span>+</span>
+						</button>
+					</div>
+				</div>
+
 				<Tree
+					ref={treeRef}
 					items={items}
 					renderItem={renderTreeItem}
 					renderDragPreview={renderDragPreview}
@@ -465,6 +650,10 @@ export default function App() {
 					indentPerLevel={INDENT_PER_LEVEL}
 					loadChildren={loadChildren}
 					onMoveItem={handleMoveItem}
+					onCreateItem={onCreateItem}
+					onCreateFolder={onCreateFolder}
+					onOpenStateChange={handleOpenStateChange}
+					initialOpenState={persistedOpenState}
 					renderLoading={renderLoading}
 				/>
 			</div>

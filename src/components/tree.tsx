@@ -2,8 +2,10 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import type { Instruction } from "@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item";
 import {
 	type ReactNode,
+	forwardRef,
 	useContext,
 	useEffect,
+	useImperativeHandle,
 	useMemo,
 	useRef,
 	useState,
@@ -15,6 +17,7 @@ import {
 	TreeItem,
 	type TreeItemRenderProps,
 	TreeProvider,
+	useTreeBranch,
 } from "../core/index.ts";
 import type {
 	MoveItemArgs,
@@ -81,6 +84,8 @@ export type TreeProps = {
 		branchId: string | null,
 	) => Promise<TreeItemType[]>;
 	renderLoading?: () => ReactNode;
+	onOpenStateChange?: (itemId: string, isOpen: boolean) => void;
+	initialOpenState?: Record<string, boolean>;
 };
 
 /**
@@ -264,7 +269,29 @@ function RecursiveItem({
 	);
 }
 
-export function Tree({
+export type TreeHandle = {
+	createItem: (item: TreeItemType) => void;
+	createFolder: (folder: TreeItemType) => void;
+};
+
+/**
+ * Bridge component that lives inside the root TreeBranch context
+ * and forwards its methods to the external ref.
+ */
+function TreeHandleBridge({
+	handleRef,
+}: {
+	handleRef: React.Ref<TreeHandle>;
+}) {
+	const { createItem, createFolder } = useTreeBranch();
+	useImperativeHandle(handleRef, () => ({ createItem, createFolder }), [
+		createItem,
+		createFolder,
+	]);
+	return null;
+}
+
+export const Tree = forwardRef<TreeHandle, TreeProps>(function Tree({
 	items,
 	renderItem,
 	renderDragPreview,
@@ -278,17 +305,36 @@ export function Tree({
 	onDeleteItem,
 	onDeleteFolder,
 	renderLoading,
-}: TreeProps) {
-	const { branchMap, initialOpenState } = useMemo(
+	onOpenStateChange,
+	initialOpenState: initialOpenStateProp,
+}: TreeProps, ref: React.Ref<TreeHandle>) {
+	const { branchMap, initialOpenState: inlineOpenState } = useMemo(
 		() => flattenTreeData(items),
 		[items],
 	);
 
+	// Merge: prop-level open state provides the base, inline isOpen on
+	// TreeItemData overrides per-item (so both mechanisms work together).
+	const mergedOpenState = useMemo(() => {
+		const merged = new Map<string, boolean>();
+		if (initialOpenStateProp) {
+			for (const [id, open] of Object.entries(initialOpenStateProp)) {
+				merged.set(id, open);
+			}
+		}
+		// Inline isOpen from items takes precedence
+		for (const [id, open] of inlineOpenState) {
+			merged.set(id, open);
+		}
+		return merged;
+	}, [initialOpenStateProp, inlineOpenState]);
+
 	return (
 		<TreeProvider
 			initialBranchData={branchMap}
-			initialOpenState={initialOpenState}
+			initialOpenState={mergedOpenState}
 			onItemMoved={onItemMoved}
+			onOpenStateChange={onOpenStateChange}
 		>
 			<TreeBranch
 				id={null}
@@ -301,6 +347,7 @@ export function Tree({
 			>
 				{(rootItems, isLoading) => (
 					<>
+						<TreeHandleBridge handleRef={ref} />
 						{rootItems.map((item, index) => (
 							<RecursiveItem
 								key={item.id}
@@ -329,6 +376,6 @@ export function Tree({
 			</TreeBranch>
 		</TreeProvider>
 	);
-}
+})
 
 export type { Instruction };

@@ -1,7 +1,12 @@
 // Types
 
 // High-level component
-export { type Instruction, Tree, type TreeProps } from "./components/tree.tsx";
+export {
+	type Instruction,
+	Tree,
+	type TreeHandle,
+	type TreeProps,
+} from "./components/tree.tsx";
 
 // Core components
 export {
